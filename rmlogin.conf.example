@@ -1,0 +1,6 @@
+rmuser: "YOUR_ROOTME_LOGIN"
+rmpassword: "YOUR_ROOTME_PASSWORD"
+checkIpInterval: 20
+# Set to "" to ignore proxy
+proxyHost: "localhost"
+proxyPort: 9050
