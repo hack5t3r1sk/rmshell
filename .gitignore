@@ -1,0 +1,13 @@
+cookie.lwp
+*.pyc
+.idea
+DEADJOE
+rmlogin.conf
+.env
+.fuse*
+.htaccess
+.v8flags*
+orig.*
+bkp.*
+*.log
+*~
