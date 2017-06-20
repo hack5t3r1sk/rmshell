@@ -11,8 +11,8 @@ and the corresponding SSH shell in the same window.
 
 ## Howto
 ```bash
-challenger@computer:/rmshell $ git clone https://github.com/hack5t3r1sk/rmshell.git
-challenger@computer:/rmshell $ cd rmshell
+challenger@computer:/ $ git clone https://github.com/hack5t3r1sk/rmshell.git
+challenger@computer:/ $ cd rmshell
 challenger@computer:/rmshell $ cp rmlogin.conf.example rmlogin.conf
 ```
 ... then edit rmlogin.conf with your credentials and proxy-settings.  
