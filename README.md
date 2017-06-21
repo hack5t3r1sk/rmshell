@@ -6,10 +6,19 @@
 It's main purpose is to check wether the public IP has changed.  
 If yes it will perform a new login on root-me.org through the proxy, allowing the current public IP to SSH into the challenge.  
 
-The second purpose (to be impleted at the time of writing) is to provide the challenge selection
+The second purpose (to be implemented at the time of writing) is to provide the challenge selection
 and the corresponding SSH shell in the same window.
 
 ## Howto
+
+### Dependencies
+* Python
+  * BeautifulSoup (from bs4 import BeautifulSoup, UnicodeDammit)
+  * atexit, Datetime, json, Queue, signal, sys, time, urllib, urllib2, yaml
+* Network (optional)
+  * a SOCKS proxy (SSH/Tor/etc...)
+
+### Installation / Usage
 ```bash
 challenger@computer:/ $ git clone https://github.com/hack5t3r1sk/rmshell.git
 challenger@computer:/ $ cd rmshell
@@ -25,7 +34,7 @@ challenger@computer:/rmshell $ python rmscreen.py
 
 To start the auto-login script alone:
 ```bash
-challenger@computer:/rmshell $ python rmlogin.py.py
+challenger@computer:/rmshell $ python rmlogin.py
 ```
 
 If for some reason the program crashes and lets your terminal in a weird state, don't panic.  
