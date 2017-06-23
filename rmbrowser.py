@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import glob
+
 import urllib, urllib2, json, os.path, re, time
 from threading import Thread
 from bs4 import BeautifulSoup, UnicodeDammit
@@ -107,6 +109,7 @@ class RMBrowser(Thread):
         self.accountURL = "%s/prof/user-admin.lml" % self.baseURL
         self.logoutURL = "%s/?action=logout&logout=public&url=https%%3A%%2F%%2Fwww.root-me.org%%3Flang%%3Den" % self.baseURL
         self.hasardURL = "%s/?var_hasard=" % self.baseURL
+        self.categoriesURL = "%s/en/Challenges/" % self.baseURL
         # The anti-CSRF token
         self.crsfToken = ""
         # Used to fill referrer in requests
@@ -123,8 +126,12 @@ class RMBrowser(Thread):
         self.lastLogoutPost = ""
         self.lastPostHTML = ""
         self.lastError = None
+        self.categories = []
+        self.categoriesList = None
+        self.challenges = []
         # Our BeautifullSoup object
         self.bs = None
+        self.categoriesBS = None
         # Used to re-write URLs in grabbed HTML
         self.replaceURL = None
         if userAgent:
@@ -137,7 +144,7 @@ class RMBrowser(Thread):
         self.ready = True
 
     def buildReq(self, url=None, data=None, referer="", extradata=""):
-        rmlog(u'RMBrowser::buildReq()', u'URL: %s' % url, 'debug2')
+        rmlog(u'RMBrowser::buildReq()', u'URL: %s' % url, 'debug3')
         if data:
             encoded_data = urllib.urlencode(data)
             encoded_data += extradata
@@ -182,7 +189,7 @@ class RMBrowser(Thread):
                 rmlog(u'RMBrowser::doreq()', u'This usually means the server doesn\'t exist, is down, or we don\'t have an internet connection.', 'error')
             self.lastError = e
             return False
-
+        html = None
         ### Process response, try to get unicode in the end
         try:
             uhtml = UnicodeDammit(self.response.read())
@@ -339,6 +346,7 @@ class RMBrowser(Thread):
 
     def getOutIP(self):
         rmlog(u'RMBrowser::getOutIP()', u'getting our current public IP.', 'debug3')
+        # Maybe TODO: try catch else
         currentIP = self.getURL("http://ipecho.net/plain", clean=False)
         if not currentIP:
             rmlog(u'RMBrowser::getOutIP()', u'Unable to get the current public IP, check your connection and your proxy settings.', 'error')
@@ -360,6 +368,138 @@ class RMBrowser(Thread):
         rmlog(u'RMBrowser::getCrsfToken()', u'CRSF-Token is %s.' % self.crsfToken, 'debug')
         return self.crsfToken
 
+    def getCategories(self):
+        rmlog(u'RMBrowser::getCategories()', u'getting categories.', 'debug3')
+        # Get the HTML
+        categories_html = self.getURL(self.categoriesURL)
+        if categories_html and len(categories_html) >0:
+            self.categoriesBS = BeautifulSoup(categories_html, "html5lib")
+            breaker = 0
+            # Parse HTML for DIVs with class="tile"
+            for catdiv in self.categoriesBS('div', {'class': "tile"}):
+                # Does it have a link ?
+                tmpLink = catdiv('a')
+                if tmpLink and len(tmpLink) >0:
+                    # Yes, it has a link
+                    # Does it have a challenge count span ?
+                    tmpHref = tmpLink[0].attrs['href']
+                    tmpCount = catdiv('span')
+                    if tmpCount and len(tmpCount) >0:
+                        # Yes it has
+                        # Does it have a B inside
+                        tmpCountInt = tmpCount[0].find('b')
+                        if tmpCountInt and len(tmpCountInt) >0:
+                            # Find the link in the menu
+                            menuLink = self.categoriesBS.find('div',
+                                        {'role': 'navigation'})('ul',
+                                        {'class': 'dropdown'})[1].find('a',
+                                        {'href': tmpHref})
+                            if menuLink:
+                                tmpDesc = menuLink.attrs['title']
+                                catTitle = menuLink.string.strip()
+                            else:
+                                tmpDesc = 'Not found in menu...'
+                                catTitle = 'Is this a category ?'
+                            if tmpDesc and len(tmpDesc) >0:
+                                # DEBUG
+                                # Comment to stop breaking below
+                                #breaker += 1
+                                challengesCount = int(tmpCountInt.string.strip())
+                                # This really looks like a valid challenge category
+                                # Get the challenges in this categroy
+                                rmlog(u'RMBrowser::getCategories()', u'getting challenges for category [%s] (%s challenges)' % (catTitle, challengesCount), 'debug')
+                                #print u'getCategories(): getting challenges for category [%s] (%s challenges)' % (catTitle, challengesCount)
+                                # Uncomment to limit to two categories
+                                if breaker >2:
+                                    break
+                                else:
+                                    tmpChallenges = self.getChallenges(tmpHref)
+                                    self.categories.append({'title': catTitle.encode("utf-8"),
+                                            'count': challengesCount,
+                                            'description': tmpDesc.encode("utf-8"),
+                                            'href': tmpHref.encode("utf-8"),
+                                            'challenges': tmpChallenges
+                                        })
+                                    # Update our categories list
+                                    self.categoriesList = [cat['title'] for cat in self.categories if 'title' in cat]
+        rmlog(u'RMBrowser::getCategories()', u'end of getCategories().', 'debug')
+
+        # Return the lightwieght list, not the big one
+        # The indexes should match anyway (len(self.categoriesList) == len(self.categories))
+        return self.categoriesList
+
+    def getChallenges(self, categoryURL):
+        #print "getChallenges(): getting URL [%s]" % categoryURL
+        rmlog(u'RMBrowser::getChallenges()', u'getting URL [%s]' % categoryURL, 'debug3')
+
+        # Init challenges object
+        self.challenges = []
+
+        # Get the HTML
+        challenges_html = self.getURL('%s/%s' % (self.baseURL,categoryURL) )
+
+        if challenges_html and len(challenges_html) >0:
+            self.challengesBS = BeautifulSoup(challenges_html, "html5lib")
+            rows = self.challengesBS('tr')
+            # Skip the first row as it is table headers
+            firstRow = True
+            # Parse HTML for all TRs
+            for chalTR in rows:
+                chalFields = chalTR.findAll('td')
+                if len(chalFields) == 8:
+                    if firstRow:
+                        firstRow = False
+                    else:
+                        validTD   = chalFields[0]
+                        linkTD   = chalFields[1]
+                        valsTD   = chalFields[2]
+                        pointsTD = chalFields[3]
+                        diffTD   = chalFields[4]
+                        noteTD   = chalFields[6]
+                        soluTD   = chalFields[7]
+
+                        # Is it already validated ? TRUE/FALSE
+                        chalValid = not (validTD.find('img',{'alt': 'pas_valide'}))
+
+                        # Extract challenge link
+                        tmpATag = linkTD.find('a')
+                        if tmpATag:
+                            chalHref = tmpATag.attrs['href']
+                            chalTitle = tmpATag.string.strip()
+                            chalDesc = tmpATag.attrs['title']
+                        # Extract challenge points
+                        tmpPoints = pointsTD.string
+                        if tmpPoints and len(tmpPoints) >0:
+                            chalPoints = int(tmpPoints.strip())
+
+                        # Extract difficulty
+                        if diffTD.find('span', {'class': 'difficulte1a'}):
+                            chalDiff = 1
+                        elif diffTD.find('span', {'class': 'difficulte2a'}):
+                            chalDiff = 2
+                        elif diffTD.find('span', {'class': 'difficulte3a'}):
+                            chalDiff = 3
+                        elif diffTD.find('span', {'class': 'difficulte4a'}):
+                            chalDiff = 4
+                        elif diffTD.find('span', {'class': 'difficulte36a'}):
+                            chalDiff = 36
+
+                        # Extract challenge solutions
+                        tmpSolus = soluTD.string
+                        if tmpSolus and len(tmpSolus) >0:
+                            chalSolus = int(tmpSolus.strip())
+
+                        self.challenges.append({'valid': chalValid,
+                                                'href': chalHref.encode("utf-8"),
+                                                'title': chalTitle.encode("utf-8"),
+                                                'points': chalPoints,
+                                                'description': chalDesc.encode("utf-8"),
+                                                'difficulty': chalDiff,
+                                                'solutions': chalSolus
+                                               })
+
+        return self.challenges
+
     def getTitle(self):
         if self.bs:
             return self.bs.title.string
@@ -367,4 +507,36 @@ class RMBrowser(Thread):
     def getRealPage(self):
         return True
 
+"""
+########################## TESTING
 
+###### getCategories
+import pprint
+pp = pprint.PrettyPrinter(indent=4)
+pp.pprint(browser.getCategories())
+
+###### Print the complete objects
+pp.pprint(browser.categories)
+
+###### Find the category-link 'en/Challenges/App-Script/' in the navigation
+browser.categoriesBS.find('div',
+    {'role': 'navigation'})('ul',
+    {'class': 'dropdown'})[1].find('a',
+    {'href': 'en/Challenges/App-Script/'}).attrs['title']
+
+###### Get a challenge
+chal = browser.categories[0]['challenges'][0]
+chal['link'].extract()
+
+####### CHECK THAT browser.categoriesList MATCHES browser.categories order
+i = 0
+for cat in browser.categoriesList:
+    print ' *** %s :===: %s (%s): %s' % (cat,
+                browser.categories[i]['title'],
+                browser.categories[i]['count'],
+                browser.categories[i]['description'])
+    i += 1
+
+
+dir(browser.categories[0]['challenges'][0]['link'])
+"""

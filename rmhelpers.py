@@ -1,32 +1,19 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-################## SHOULD BE SET IN THE MAIN SCRIPT
-# Log level
-# - False => INFO, ERROR
-# - 1     => INFO, WARNING, ERROR
-#LOGLEVEL = 1
-
-# Debug level
-# - False => no debugging
-# - 0     => debug
-# - 1     => debug, debug1
-# - 2     => debug, debug1, debug2
-# - 3     => debug, debug1, debug2, debug3
-#DEBUG = 3
-################## END: SHOULD BE SET IN THE MAIN SCRIPT
-global DEBUG
+import glob
 
 import datetime as dt, sys, random
 import atexit, signal
 
 def setLogLevel(level):
-    global LOGLEVEL
-    LOGLEVEL = level
+    glob.LOGLEVEL = level
+
+def getDebugLevel():
+    return glob.DEBUG
 
 def setDebugLevel(level):
-    global DEBUG
-    DEBUG = level
+    glob.DEBUG = level
 
 # Intercepts sys.exit(0)
 def exit_handler():
@@ -34,7 +21,6 @@ def exit_handler():
 
 # Intercepts any signal
 def signal_handler(signalId, frame):
-    print
     if signalId == signal.SIGTERM:
         rmlog(u'rmhelpers::signal_handler()', u'Received SIGTERM: exiting.')
     if signalId == signal.SIGINT:
@@ -42,6 +28,7 @@ def signal_handler(signalId, frame):
     sys.exit(0)
 
 def ipCheck(browser):
+    # Maybe TODO: try catch else
     currentIP =  browser.getOutIP()
     if currentIP and currentIP != '' and browser.lastOutIP != currentIP:
         browser.lastOutIP = currentIP
@@ -50,28 +37,47 @@ def ipCheck(browser):
         browser.doLogin()
         browser.loggedIn()
     else:
-        rmlog(u'rmhelpers::ipCheck()', u'IP is still the same => [%s]' % browser.lastOutIP, 'debug3')
+        rmlog(u'rmhelpers::ipCheck()', u'IP is still the same => [%s]' % browser.lastOutIP, 'debug2')
 
-def rmlog(funcName, msg,level="info"):
-    global DEBUG
-    global LOGLEVEL
-    tstamp = getNow('sql')
-    if level == 'info':
-        sys.stdout.write("%s::[INFO]:%s: %s\n" % (tstamp, funcName, msg.encode('utf-8')))
-    elif level == 'warning':
-        sys.stdout.write("%s::[WARNING]:%s: %s\n" % (tstamp, funcName, msg.encode('utf-8')))
-    elif level == 'debug':
-        if DEBUG and DEBUG >= 1:
-            sys.stdout.write("%s::[debug]:%s: %s\n" % (tstamp, funcName, msg.encode('utf-8')))
-    elif level == 'debug2':
-        if DEBUG and DEBUG >= 2:
-            sys.stdout.write("%s::[debug2]:%s: %s\n" % (tstamp, funcName, msg.encode('utf-8')))
-    elif level == 'debug3':
-        if DEBUG and DEBUG >= 3:
-            sys.stdout.write("%s::[debug3]:%s: %s\n" % (tstamp, funcName, msg.encode('utf-8')))
+def rmWriteOut(msg):
+    if glob.loginQueue:
+        glob.loginQueue.put(msg)
     else:
-        sys.stderr.write("%s::[ERROR]:%s: %s\n" % (tstamp, funcName, msg.encode('utf-8')))
-    sys.stdout.flush()
+        sys.stdout.write(msg)
+        sys.stdout.flush()
+
+
+def rmlog(funcName, msg, level="info"):
+    tstamp = getNow('sql')
+    umsg = msg.encode('utf-8')
+    if level == 'info':
+        rmWriteOut("%s::[INFO]:%s: %s\n" % (tstamp, funcName, umsg))
+    elif level == 'warning':
+        rmWriteOut("%s::[WARNING]:%s: %s\n" % (tstamp, funcName, umsg))
+    elif level == 'debug':
+        if glob.DEBUG and glob.DEBUG >= 1:
+            rmWriteOut("%s::[debug]:%s: %s\n" % (tstamp, funcName, umsg))
+    elif level == 'debug2':
+        if glob.DEBUG and glob.DEBUG >= 2:
+            rmWriteOut("%s::[debug2]:%s: %s\n" % (tstamp, funcName, umsg))
+    elif level == 'debug3':
+        if glob.DEBUG and glob.DEBUG >= 3:
+            rmWriteOut("%s::[debug3]:%s: %s\n" % (tstamp, funcName, umsg))
+    else:
+        rmWriteOut("%s::[ERROR]:%s: %s\n" % (tstamp, funcName, umsg))
+
+def truncLine(line, width):
+    if len(line) > width - 8:
+        return line[0:width - 8] + '[...]'
+    else:
+        return line
+
+def rmDiff(i):
+    diffList = {1: "Very easy", 2: "Easy", 3: "Medium", 4: "Hard", 36: "Very hard"}
+    if i in diffList:
+        return diffList[i]
+    else:
+        return "= n-a ="
 
 def getNow(format="epoch"):
     now = dt.datetime.now()

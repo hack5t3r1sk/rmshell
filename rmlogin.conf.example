@@ -4,3 +4,5 @@ checkIpInterval: 20
 # Set to "" to ignore proxy
 proxyHost: "localhost"
 proxyPort: 9050
+debug: 2
+rmChallengesStore: "rmchallenges.db"

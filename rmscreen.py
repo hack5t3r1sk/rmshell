@@ -1,6 +1,26 @@
-import curses, sys, time, subprocess
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+from __future__ import division
+import glob
+
+import curses, time
 from threading  import Thread
-from Queue import Queue, Empty
+from rmhelpers import *
+from math import *
+
+# Set the Queue for the Thread BEFORE importing rmlogin
+# for logging the Browser-imports
+import Queue
+glob.loginQueue = Queue.Queue()
+
+import rmlogin
+
+# Store the selected element in the categories-lists
+catListPos = 1
+
+# Store the selected element in the challenges-lists
+challListPos = 1
 
 ON_POSIX = 'posix' in sys.builtin_module_names
 
@@ -118,63 +138,253 @@ class suspend_curses():
         newscr.refresh()
         curses.doupdate()
 
-class loginWidget():
-    def __init__(self, stdscr, height, width):
-        self.height = (height / 2) -4
-        self.width = width -2
-        self.beginX = 2
+
+
+
+################################### WIDGETS
+class LoginWidget():
+    def __init__(self, winParent, height, width):
+        self.winParent = winParent
+        self.height = int(height / 3) - 2
+        self.width = width - 3
+        self.beginX = 1
         self.beginY = 4
         # Create new sub-window
         self.win = curses.newwin(self.height, self.width, self.beginY, self.beginX)
-        self.win.border(1)
-        # Add title to th sub-window
-        self.win.addstr(0,5,'| LOGIN LOG |')
 
     def update(self, lines):
+        self.win.clear()
         lineNr = 1
-        if len(lines) > self.height - 2:
-            startIdx = len(lines) - self.height + 2
+        maxlines = self.height - 2
+        # Compute the max number of line according to current height
+        if len(lines) > maxlines:
+            startIdx = len(lines) -1 - maxlines     # maxlines + 2 == self.height
         else:
-            startIdx = 0
-        endIdx = len(lines)
+            startIdx = 1
+        # The last line should be the last one shown
+        endIdx = len(lines) - 1
+        # Check if we miscomputed
         if len(lines[startIdx:endIdx]) >= self.height:
             self.win.addstr(lineNr,2, 'THIS IS STILL TOO BIG [%s]' % len(lines[startIdx:endIdx]))
             return
+        # Now cut the line if it's too long according to current width
         for loginLine in lines[startIdx:endIdx]:
-            # add the line to the subwindow
-            if len(loginLine) > self.width - 1:
-                self.win.addstr(lineNr,1, loginLine[0:self.width - 8] + '[...]')
-            else:
-                self.win.addstr(lineNr,1, loginLine)
+            # add the formatted line to the subwindow
+            self.win.addstr(lineNr,2, truncLine(loginLine, self.width), curses.color_pair(2))
             lineNr += 1
             # call addstr() and refresh()
-        self.win.refresh()
+        #self.winParent.refresh()
+        self.win.border(1)
+        # Add title to the sub-window
+        self.win.addstr(0,5,'| LOGIN LOG |', curses.color_pair(1))
+        self.win.noutrefresh()
 
 
+class ChallWidget():
+    def __init__(self, winParent, height, width):
+        self.winParent = winParent
+        self.listHeight = int(height / 3) - 2
+        self.descHeight = int(height / 3) - 1
+        self.widthDesc = width - 3
+        self.widthCat = int(width / 4) - 3
+        self.widthChall = int( width / 4) * 3 - 1
+        self.beginX = 1
+        self.beginY = int(height / 3) + 2
+        self.beginChall = self.widthCat + 2 + self.beginX
 
+        # Create new sub-windows
+        self.winCat = curses.newwin(self.listHeight, self.widthCat, self.beginY, self.beginX)
+        self.winChall = curses.newwin(self.listHeight, self.widthChall, self.beginY, self.beginChall)
+        self.winDesc = curses.newwin(self.descHeight, self.widthDesc, self.beginY + self.listHeight, self.beginX)
 
-class  loginProcess():
+        # Holds the current maximum items in list
+        self.maxlines = self.listHeight - 2
+        # Holds the number of categories
+        self.catLines = 0
+        # Holds the number of challenges in the currently seleted categories
+        self.challLines = 0
+        self.descMsg = ""
+        self.catDesc = ""
+        self.challDesc = ""
+
+    def update(self, browser):
+        # Clear the sub-windows
+        self.winCat.clear()
+        self.winChall.clear()
+        self.winDesc.clear()
+
+        # If we are updating the DB, alert the user
+        if glob.UPDATE:
+            self.winCat.addstr(2,2, ' !  UPDATING  ! ',
+                    curses.A_BOLD | curses.A_BLINK | curses.color_pair(3))
+            self.winChall.addstr(2,2, '   Please wait until update has completed, I will then disappear :=]   ', curses.color_pair(3))
+        else:
+            if browser.categoriesList and len(browser.categoriesList) >0:
+                self.catLines = len(browser.categoriesList)
+
+                # Compute the slice to be displayed depending on
+                # catListPos , self.catLines and self.maxlines
+                # If the list is bigger than maxlines
+                # and current position is not at bottom, no scroll
+                if self.catLines > self.maxlines:
+                    # WHEN WE DO SCROLL
+                    if catListPos > self.maxlines - 2:
+                        delta = catListPos - self.maxlines + 2
+                        # If we are not displaying the last item aready
+                        if self.catLines > ( delta + self.maxlines ):
+                            startIdx = delta
+                            endIdx = self.maxlines + delta
+                        else:   # WE REACHED THE END OF THE LIST, STOP SCROLLING
+                            startIdx = delta
+                            endIdx = self.catLines
+                    # WHEN WE DO NOT SCROLL
+                    else:
+                        delta = None
+                        startIdx = 0
+                        endIdx = self.maxlines
+                # SHOW EVERYTHING
+                else:
+                    delta = None
+                    startIdx = 0
+                    # The last line should be the last one shown
+                    endIdx = self.catLines
+
+                # Display the slice of cateories around current position
+                catLineNr = 1
+                for category in browser.categoriesList[startIdx:endIdx]:
+                    # Is this the selected category ?
+                    if ((catLineNr + startIdx) == catListPos):
+                        # Display TITLE with inverted list-colors
+                        self.winCat.addstr(catLineNr, 2, " %s " % category, curses.color_pair(5))
+                        self.catDesc = "[  Category ] '%s'" % browser.categories[catListPos - 1]['description']
+                        #self.descMsg = '[  Category ] %s \n' % browser.categories[catListPos - 1]['description']
+
+                        # Populate challenges
+                        self.challLines = len(browser.categories[catListPos - 1]['challenges'])
+
+                        # Compute the slice to be displayed depending on
+                        # challListPos , self.challLines and self.maxlines
+                        # If the list is bigger than maxlines
+                        # and current position 2 lines before bottom, no scroll
+                        if self.challLines > self.maxlines:
+                            # WHEN WE DO SCROLL
+                            if challListPos > self.maxlines - 2:
+                                challDelta = challListPos - self.maxlines + 2
+                                # If we are not displaying the last item aready
+                                if self.challLines > ( challDelta + self.maxlines ):
+                                    startIdxChall = challDelta
+                                    endIdxChall = self.maxlines + challDelta
+                                else:   # WE REACHED THE END OF THE LIST, STOP SCROLLING
+                                    startIdxChall = challDelta
+                                    endIdxChall = self.challLines
+                            # WHEN WE DO NOT SCROLL
+                            else:
+                                challDelta = None
+                                startIdxChall = 0
+                                endIdxChall = self.maxlines
+                        # SHOW EVERYTHING
+                        else:
+                            challDelta = None
+                            startIdxChall = 0
+                            # The last line should be the last one shown
+                            endIdxChall = self.challLines
+
+                        challLineNr = 1
+                        for challenge in browser.categories[catListPos - 1]['challenges'][startIdxChall:endIdxChall]:
+                            challLine = truncLine('[%spts] [%s] %s' % (
+                                challenge['points'], rmDiff(challenge['difficulty']),
+                                challenge['title']), self.widthChall - 3 )
+                            try:
+                                if ((challLineNr + startIdxChall) == challListPos):
+                                    self.winChall.addstr(challLineNr , 2, challLine, curses.color_pair(7))
+                                    self.challDesc = "[ Challenge ] '%s'" % challenge['description']
+                                    #self.descMsg += "\n  [ Challenge ] %s" % challenge['description']
+                                else:
+                                    self.winChall.addstr(challLineNr , 2, challLine, curses.color_pair(6))
+                            except:
+                                try:
+                                    challLine = truncLine("ERR: max: %s | tt: %s | sta: %s | end: %s | nr: %s" % (
+                                                                    self.maxlines, self.challLines, startIdxChall, endIdxChall,  challLineNr ))
+                                    self.winChall.addstr(challLineNr , 2, challLine)
+                                except:
+                                    print "ERR: max: %s | tt: %s | sta: %s | end: %s | nr: %s" % (
+                                        self.maxlines, self.challLines, startIdxChall, endIdxChall,  challLineNr )
+                                    dir(curses.error)
+                                    time.sleep(2)
+                                    pass
+                                pass
+                            challLineNr += 1
+                    else:
+                        # Show with list colors
+                        catLine = truncLine(" %s " % category, self.widthCat)
+                        self.winCat.addstr(catLineNr, 2, catLine, curses.color_pair(4))
+                    catLineNr += 1
+                # DEBUG IN CHALLENGES WINDOW
+                #self.winChall.addstr(1, 2, "self.catLines => [%s] | self.maxlines => [%s] | position => [%s] " % (self.challLines, self.maxlines, catListPos), curses.color_pair(4))
+                #self.winChall.addstr(2, 2, "startIdx => [%s] | endIdx => [%s] | delta => %s" % (startIdx, endIdx, challDelta), curses.color_pair(4))
+            else:
+                # Alert
+                self.winCat.addstr(2,2, 'No category found !', curses.color_pair(3))
+                self.winChall.addstr(2,2, 'No challenges found in browser. Press "u" to update !', curses.color_pair(3))
+
+        # Display decriptions
+        self.winDesc.addstr(1, 2, self.catDesc, curses.color_pair(4))
+        curY, curX = self.winDesc.getyx()
+        self.winDesc.addstr(curY + 2, 2, self.challDesc, curses.color_pair(6))
+        #self.winDesc.addstr(1, 2, self.descMsg, curses.color_pair(2))
+
+        # Add borders and titles
+        self.winCat.border(1)
+        self.winCat.addstr(0,2, '| CATEGORIES < >|', curses.color_pair(4))
+        self.winChall.border(1)
+        self.winChall.addstr(0,2, '| CHALLENGES ^ v|', curses.color_pair(6))
+        self.winDesc.border(1)
+        self.winDesc.addstr(0,2, '| DESCRIPTIONS |', curses.color_pair(1))
+
+        # Refresh without output
+        self.winCat.noutrefresh()
+        self.winChall.noutrefresh()
+        self.winDesc.noutrefresh()
+
+    def moveCatDown(self):
+        global challListPos
+        global catListPos
+        if catListPos <self.catLines:
+            # Reset challListPos when changing category
+            challListPos = 1
+            catListPos += 1
+
+    def moveCatUp(self):
+        global challListPos
+        global catListPos
+        if catListPos >1:
+            # Reset challListPos when changing category
+            challListPos = 1
+            catListPos -= 1
+
+    def moveChallDown(self):
+        global challListPos
+        if challListPos <self.challLines:
+            challListPos += 1
+
+    def moveChallUp(self):
+        global challListPos
+        if challListPos >1:
+            challListPos -= 1
+
+################################### THREADS
+class  loginThread():
     def __init__(self):
-        # Define the subprocess args
-        autologin = ['python', './rmlogin.py']
-
-        # Start the subprocess
-        self.process = subprocess.Popen(autologin,
-                                     stdout=subprocess.PIPE,
-                                     stderr=subprocess.STDOUT,
-                                     bufsize=1,
-                                     close_fds=ON_POSIX)
         self.log = []
-        self.queue = Queue()
-        self.reader = Thread(target=enqueue_output, args=(self.process.stdout, self.queue))
-        self.reader.daemon = True # thread dies with the program
-        self.reader.start()
+        self.thread = Thread(target=rmlogin.initStart)
+        self.thread.daemon = True # thread dies with the program
+        self.thread.start()
 
     def updateLog(self):
         done = False
         while not done:
-            try:  loginLine = self.queue.get_nowait() # or q.get(timeout=.1)
-            except Empty:
+            try:  loginLine = glob.loginQueue.get_nowait() # or q.get(timeout=.1)
+            except Queue.Empty:
                 #print('Empty exception, setting done=True')
                 done = True
             else: # got line
@@ -186,61 +396,125 @@ class  loginProcess():
 
 def main(winMain):
     doQuit = False
-    showLogin = False
+    showChall = True
+    showLogin = True
     showShell = False
 
-    # Start the auto-login script
-    loginProc = loginProcess()
+    # Start the auto-login Thread
+    login_thread = loginThread()
 
-    # Make stdscr.getch non-blocking
-    winMain.nodelay(True)
-    width = 4
-    count = 0
-    direction = 1
-
-
-    # Create main window
-    #winMain = curses.initscr()
+    # Initializes curses
     curses.curs_set(0)
 
     # Don't echo keys pressed
     curses.noecho()
 
+    # Async getch
+    curses.cbreak()
+
+    # Enable colors (done by wrapper)
+    #curses.start_color()
+
+    # Make stdscr.getch non-blocking
+    winMain.nodelay(True)
+
+    # Enable arrow- and special-keys (done by wrapper)
+    #winMain.keypad(1)
+
+    ### Define colors
+    # TITLES
+    curses.init_pair(1, curses.COLOR_YELLOW, curses.COLOR_BLACK)
+    # WARNING
+    curses.init_pair(2, curses.COLOR_YELLOW, curses.COLOR_BLACK)
+    # ERRORS
+    curses.init_pair(3, curses.COLOR_RED, curses.COLOR_WHITE)
+    # LIST BLUE
+    curses.init_pair(4, curses.COLOR_CYAN, curses.COLOR_BLACK)
+    curses.init_pair(5, curses.COLOR_BLACK, curses.COLOR_CYAN)
+    # LIST GREEN
+    curses.init_pair(6, curses.COLOR_GREEN, curses.COLOR_BLACK)
+    curses.init_pair(7, curses.COLOR_BLACK, curses.COLOR_GREEN)
+    # HELP / USAGE
+    curses.init_pair(8, curses.COLOR_GREEN, curses.COLOR_WHITE)
+
+    # Set the border on
+    winMain.border(1)
+    #time.sleep(10)
     while not doQuit:
         height, width = winMain.getmaxyx()
-        # Store the queued output to our log
-        loginProc.updateLog()
-        # Set the border on
-        winMain.border(1)
+
+        # Store the queued output to thread log
+        login_thread.updateLog()
+
+        # clear the main window
         winMain.clear()
 
         # Set title
-        winMain.addstr(0,5,'| ROOT THE CASBA |')
-        winMain.addstr(2,5, "Usage: q = quit | l = show/hide login log | s = show/hide the shell")
-        winMain.refresh()
+        winMain.border(1)
+        winMain.addstr(0,5,'| ROOT THE CASBA |', curses.color_pair(6))
+        winMain.addstr(2,5, "  Usage: 0-3 =>debug (%s) | c => challenges | l =>login-log | s =>shell | u =>update_chal-DB (%s) | q =>quit " % (int(getDebugLevel()), glob.UPDATE), curses.color_pair(8))
+        winMain.noutrefresh()
 
         if showLogin:
-            winLogin = loginWidget(winMain, height, width)
-            winLogin.update(loginProc.log)
+            winLogin = LoginWidget(winMain, height, width)
+            winLogin.update(login_thread.log)
+
+        if showChall:
+            winChall = ChallWidget(winMain, height, width)
+            winChall.update(rmlogin.browser)
+
+        #if showShell:
+        #    winShell = shellWidget(winMain, height, width)
+        #    winShell.update(browser)
+
+        # Now that the windows are in the next state
+        # update the screen for real (no flickering)
+        curses.doupdate()
 
         # Wait for a char
         k = winMain.getch()
+
         # Clear out anything else the user has typed in
         curses.flushinp()
 
         # Analyse key pressed
         if k == ord('q'):
             doQuit = True
+        ### DEBUG LEVEL
+        elif k == ord('0'):
+            setDebugLevel(False)
+        elif k == ord('1'):
+            setDebugLevel(1)
+        elif k == ord('2'):
+            setDebugLevel(2)
+        elif k == ord('3'):
+            setDebugLevel(3)
+        ### SHOW / HIDE
+        elif k == ord('c'):
+            showChall = not not not showChall
         elif k == ord('l'):
             showLogin = not not not showLogin
         elif k == ord('s'):
+        ### UPDATE CHALLENGES DATABASE
             showShell = not not not showShell
+        elif k == ord('u'):
+            glob.UPDATE = True
+        ### NAVIGATION
+        elif k == curses.KEY_RIGHT:
+            winChall.moveCatDown()
+        elif k == curses.KEY_LEFT:
+            winChall.moveCatUp()
+        elif k == curses.KEY_DOWN:
+            winChall.moveChallDown()
+        elif k == curses.KEY_UP:
+            winChall.moveChallUp()
         else:
             pass
 
+        # Give the core some breath
         time.sleep(0.1)
-
+    # doQuit is True
     curses.endwin()
-
-
-curses.wrapper(main)
+# Main scope
+if __name__ == "__main__":
+    curses.wrapper(main)
