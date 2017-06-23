@@ -15,7 +15,7 @@ SSH shell in a dedicated panel over the SOCKS tunnel.
 ### Dependencies
 * Python
   * BeautifulSoup (from bs4 import BeautifulSoup, UnicodeDammit)
-  * atexit, Datetime, json, pickle, Queue, signal, sys, time, urllib, urllib2, yaml
+  * atexit, Datetime, json, os, pickle, Queue, signal, sys, time, urllib, urllib2, yaml
 * Network (optional)
   * a SOCKS proxy (SSH/Tor/etc...)
 
