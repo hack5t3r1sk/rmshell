@@ -234,6 +234,8 @@ class RMBrowser(Thread):
     def postURL(self, url=None, data=None, referrer="", extraData="", clean=True):
         if not url and self.baseURL and self.baseURL != "":
             url = "%s/" % self.baseURL
+        if not data:
+            data = {}
         data['formulaire_action_args'] = self.crsfToken
         self.req = self.buildReq(url,data, referrer, extraData)
         if self.doreq():
