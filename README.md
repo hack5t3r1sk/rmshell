@@ -67,7 +67,7 @@ challenger@computer:/rmshell $ stty sane
 * UI (rmscreen)
   - added command `0` to `3` for changing `glob.DEBUG` from the UI
   - replaced `subprocess.Popen()` with `threading.Thread()` to interact with rmlogin at runtime via globals
-  - added a global `loginQueue` for log with the thread with the helper
+  - added a global `loginQueue` for logging the thread's output with the helper rmlog()
   - improved display logic to avoid flickering / weird chars
   - added challenges-widget for displaying categories, challenges and associated descriptions
   - added the scrolling / selection logic to the list display 
