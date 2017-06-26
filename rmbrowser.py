@@ -54,12 +54,12 @@ if cj is not None:
 # we successfully imported
 # one of the two cookie handling modules
     if os.path.isfile(COOKIEFILE):
-        rmlog('RMBrowser::pre-init', 're-using cookie %s' % COOKIEFILE) # TODO: , 'debug')
+        rmlog('RMBrowser::pre-init', 're-using cookie %s' % COOKIEFILE, 'debug2')
         # if we have a cookie file already saved
         # then load the cookies into the Cookie Jar
         cj.load(COOKIEFILE,ignore_discard=True)
     else:
-        rmlog('RMBrowser::pre-init', 'creating cookie %s' % COOKIEFILE) # TODO: , 'debug')
+        rmlog('RMBrowser::pre-init', 'creating cookie %s' % COOKIEFILE, 'debug2')
 
     # Now we need to get our Cookie Jar
     # installed in the opener;
@@ -70,14 +70,14 @@ if cj is not None:
         # and install the opener in urllib2
         opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj))
         urllib2.install_opener(opener)
-        rmlog('RMBrowser::pre-init', 'using urllib2') # TODO: , 'debug')
+        rmlog('RMBrowser::pre-init', 'using urllib2', 'debug2')
     else:
         # if we use ClientCookie
         # then we get the HTTPCookieProcessor
         # and install the opener in ClientCookie
         opener = ClientCookie.build_opener(ClientCookie.HTTPCookieProcessor(cj))
         ClientCookie.install_opener(opener)
-        rmlog('RMBrowser::pre-init', 'using ClientCookie' % COOKIEFILE) # TODO: , 'debug')
+        rmlog('RMBrowser::pre-init', 'using ClientCookie' % COOKIEFILE, 'debug2')
 #
 ##### End of conditional import
 if cj == None:
@@ -138,7 +138,7 @@ class RMBrowser(Thread):
             self.userAgent = userAgent
         else:
             self.userAgent = u"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_12) AppleWebKit/535.11 (KHTML, like Gecko) Chrome/17.0.963.65 Safari/535.11"
-        rmlog(u'RMBrowser::__init__()', u'user-agent: [%s].' % self.userAgent)
+        rmlog(u'RMBrowser::__init__()', u'user-agent: [%s].' % self.userAgent, 'debug')
         # Variables for browser-status
         self.status = "IDLE"
         self.ready = True
@@ -234,8 +234,8 @@ class RMBrowser(Thread):
     def postURL(self, url=None, data=None, referrer="", extraData="", clean=True):
         if not url and self.baseURL and self.baseURL != "":
             url = "%s/" % self.baseURL
-        if not data:
-            data = {}
+        #if not data:
+        #    data = {}
         data['formulaire_action_args'] = self.crsfToken
         self.req = self.buildReq(url,data, referrer, extraData)
         if self.doreq():
@@ -337,6 +337,7 @@ class RMBrowser(Thread):
 
 
     def loggedIn(self):
+        self.getHome()
         if self.bs:
             foundAccount = self.bs.find("a",{'href': "./?page=preferences&lang=en" })
             if foundAccount:

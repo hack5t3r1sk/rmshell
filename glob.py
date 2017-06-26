@@ -18,7 +18,7 @@ rmVersion = '0.2'
 # - 3     => debug, debug1, debug2, debug3
 
 global DEBUG
-DEBUG = 3
+DEBUG = 0
 
 global loginQueue
 loginQueue = None

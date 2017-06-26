@@ -28,7 +28,6 @@ def signal_handler(signalId, frame):
     sys.exit(0)
 
 def ipCheck(browser):
-    # Maybe TODO: try catch else
     currentIP =  browser.getOutIP()
     if currentIP and currentIP != '' and browser.lastOutIP != currentIP:
         browser.lastOutIP = currentIP
@@ -38,6 +37,7 @@ def ipCheck(browser):
         browser.loggedIn()
     else:
         rmlog(u'rmhelpers::ipCheck()', u'IP is still the same => [%s]' % browser.lastOutIP, 'debug2')
+        browser.loggedIn()
 
 def rmWriteOut(msg):
     if glob.loginQueue:
