@@ -158,23 +158,26 @@ class LoginWidget():
         maxlines = self.height - 2
         # Compute the max number of line according to current height
         if len(lines) > maxlines:
-            startIdx = len(lines) -1 - maxlines     # maxlines + 2 == self.height
+            startIdx = len(lines) - maxlines     # maxlines + 2 == self.height
         else:
-            startIdx = 1
+            startIdx = 0
+
         # The last line should be the last one shown
-        endIdx = len(lines) - 1
+        endIdx = len(lines)
+
         # Check if we miscomputed
         if len(lines[startIdx:endIdx]) >= self.height:
             self.win.addstr(lineNr,2, 'THIS IS STILL TOO BIG [%s]' % len(lines[startIdx:endIdx]))
             return
-        # Now cut the line if it's too long according to current width
+            
+        # Display the lines
         for loginLine in lines[startIdx:endIdx]:
-            # add the formatted line to the subwindow
-            self.win.addstr(lineNr,2, truncLine(loginLine, self.width), curses.color_pair(2))
-            lineNr += 1
-            # call addstr() and refresh()
-        #self.winParent.refresh()
+            if loginLine:
+                # add the formatted line to the subwindow
+                self.win.addstr(lineNr,2, truncLine(loginLine, self.width), curses.color_pair(2))
+                lineNr += 1
         self.win.border(1)
+        
         # Add title to the sub-window
         self.win.addstr(0,5,'| LOGIN LOG |', curses.color_pair(1))
         self.win.noutrefresh()
@@ -219,8 +222,9 @@ class ChallWidget():
                     curses.A_BOLD | curses.A_BLINK | curses.color_pair(3))
             self.winChall.addstr(2,2, '   Please wait until update has completed, I will then disappear :=]   ', curses.color_pair(3))
         else:
-            if browser.categoriesList and len(browser.categoriesList) >0:
-                self.catLines = len(browser.categoriesList)
+            categories = browser.categories.get()
+            if categories and len(categories) >0:
+                self.catLines = len(browser.categories)
 
                 # Compute the slice to be displayed depending on
                 # catListPos , self.catLines and self.maxlines
@@ -251,16 +255,15 @@ class ChallWidget():
 
                 # Display the slice of cateories around current position
                 catLineNr = 1
-                for category in browser.categoriesList[startIdx:endIdx]:
+                for category in browser.categories.list[startIdx:endIdx]:
                     # Is this the selected category ?
                     if ((catLineNr + startIdx) == catListPos):
                         # Display TITLE with inverted list-colors
                         self.winCat.addstr(catLineNr, 2, " %s " % category, curses.color_pair(5))
-                        self.catDesc = "[  Category ] '%s'" % browser.categories[catListPos - 1]['description']
-                        #self.descMsg = '[  Category ] %s \n' % browser.categories[catListPos - 1]['description']
+                        self.catDesc = "[  Category ] '%s'" % browser.categories[catListPos - 1].description
 
                         # Populate challenges
-                        self.challLines = len(browser.categories[catListPos - 1]['challenges'])
+                        self.challLines = len(browser.categories[catListPos - 1].challenges)
 
                         # Compute the slice to be displayed depending on
                         # challListPos , self.challLines and self.maxlines
@@ -290,15 +293,12 @@ class ChallWidget():
                             endIdxChall = self.challLines
 
                         challLineNr = 1
-                        for challenge in browser.categories[catListPos - 1]['challenges'][startIdxChall:endIdxChall]:
-                            challLine = truncLine('[%spts] [%s] %s' % (
-                                challenge['points'], rmDiff(challenge['difficulty']),
-                                challenge['title']), self.widthChall - 3 )
+                        for challenge in browser.categories[catListPos - 1].challenges[startIdxChall:endIdxChall]:
+                            challLine = truncLine('%s' % challenge, self.widthChall - 3 )
                             try:
                                 if ((challLineNr + startIdxChall) == challListPos):
                                     self.winChall.addstr(challLineNr , 2, challLine, curses.color_pair(7))
-                                    self.challDesc = "[ Challenge ] '%s'" % challenge['description']
-                                    #self.descMsg += "\n  [ Challenge ] %s" % challenge['description']
+                                    self.challDesc = "[ Challenge ] '%s'" % challenge.description
                                 else:
                                     self.winChall.addstr(challLineNr , 2, challLine, curses.color_pair(6))
                             except:
@@ -331,7 +331,6 @@ class ChallWidget():
         self.winDesc.addstr(1, 2, self.catDesc, curses.color_pair(4))
         curY, curX = self.winDesc.getyx()
         self.winDesc.addstr(curY + 2, 2, self.challDesc, curses.color_pair(6))
-        #self.winDesc.addstr(1, 2, self.descMsg, curses.color_pair(2))
 
         # Add borders and titles
         self.winCat.border(1)
@@ -376,17 +375,20 @@ class ChallWidget():
 class  loginThread():
     def __init__(self):
         self.log = []
-        self.thread = Thread(target=rmlogin.initStart)
+        self.browser = rmlogin.init()
+        self.thread = Thread(target=rmlogin.start, kwargs={'browser': self.browser})
         self.thread.daemon = True # thread dies with the program
         self.thread.start()
 
     def updateLog(self):
         done = False
         while not done:
-            try:  loginLine = glob.loginQueue.get_nowait() # or q.get(timeout=.1)
+            try:
+                loginLine = glob.loginQueue.get_nowait() # or q.get(timeout=.1)
             except Queue.Empty:
                 #print('Empty exception, setting done=True')
                 done = True
+                pass
             else: # got line
                 # add the line to the subwindow
                 self.log.append(loginLine)
@@ -399,9 +401,6 @@ def main(winMain):
     showChall = True
     showLogin = True
     showShell = False
-
-    # Start the auto-login Thread
-    login_thread = loginThread()
 
     # Initializes curses
     curses.curs_set(0)
@@ -436,9 +435,18 @@ def main(winMain):
     curses.init_pair(7, curses.COLOR_BLACK, curses.COLOR_GREEN)
     # HELP / USAGE
     curses.init_pair(8, curses.COLOR_GREEN, curses.COLOR_WHITE)
+    winMain.addstr(0,2," Loading, please wait... ", curses.color_pair(3))
+    winMain.addstr(1,0,"")
+    winMain.refresh()
 
+    # Start the auto-login Thread
+    login_thread = loginThread()
+    winMain.addstr(2,2,"LoginThread loaded !", curses.color_pair(3))
+    winMain.refresh()
     # Set the border on
     winMain.border(1)
+    
+    # DEBUG
     #time.sleep(10)
     while not doQuit:
         height, width = winMain.getmaxyx()
@@ -451,7 +459,7 @@ def main(winMain):
 
         # Set title
         winMain.border(1)
-        winMain.addstr(0,5,'| ROOT THE CASBA |', curses.color_pair(6))
+        winMain.addstr(0,5,'| ROOT THE CASBA |', curses.color_pair(3))
         winMain.addstr(2,5, "  Usage: 0-3 =>debug (%s) | c => challenges | l =>login-log | s =>shell | u =>update_chal-DB (%s) | q =>quit " % (int(getDebugLevel()), glob.UPDATE), curses.color_pair(8))
         winMain.noutrefresh()
 
@@ -461,7 +469,7 @@ def main(winMain):
 
         if showChall:
             winChall = ChallWidget(winMain, height, width)
-            winChall.update(rmlogin.browser)
+            winChall.update(login_thread.browser)
 
         #if showShell:
         #    winShell = shellWidget(winMain, height, width)

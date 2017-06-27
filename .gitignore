@@ -7,7 +7,7 @@ rmlogin.conf
 .fuse*
 .htaccess
 .v8flags*
-testthread.py
+test*.py
 orig.*
 bkp.*
 *.obj

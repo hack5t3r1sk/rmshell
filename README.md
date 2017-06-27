@@ -56,6 +56,27 @@ challenger@computer:/rmshell $ stty sane
 
 
 ## Changelog
+### v0.3
+* Code refactoring (mainly removing global stuff and splitting code into several files)
+  - splitted the old RMBrowser into:
+    1. a base Browser class for the low-level operations (this subclasses Thread)
+    2. a RMBrowser class for the root-me.org specific properties and methods
+    3. a RMCategories class for scraping and holding the whole categories-tree (this object will be saved to a file after a sucessful update)
+    4. a RMCategory class for scraping and representing a category, including all its challenges
+    5. a RMChallenge class for scraping and representing a challenge
+  - removed the global browser variable, which is now passed over when needed
+  - added a log-file in the glob.cfg
+  - improved logging to support the logfile
+* rmlogin.py / rmhelpers.py
+  - removed unuseful requests for speeding up the whole loop
+  - optimized the waiting times in the loop to speed up the init process
+  - improved logging
+  - ipCheck(): added loggedIn() check when 'IP is still the same', to be sure we're always logged in
+* UI (rmscreen)
+  - fixed a bug in the logic deciding which login-log-lines are shown (we were missing the last line)
+  - added a "Loading, please wait" message at startup
+  - adapted to the new RMCategories, RMCategory and RMChallenge classes
+
 ### v0.2 
 * RMBrowser / rmlogin / helpers
   - added a `glob` namespace for sharing global variables across all files
