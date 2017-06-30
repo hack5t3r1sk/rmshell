@@ -3,7 +3,7 @@
 
 import glob
 
-import datetime as dt, sys, random
+import datetime as dt, sys, random, time
 import atexit, signal
 
 def setLogLevel(level):
@@ -33,7 +33,7 @@ def getaddrinfo(*args):
 def ipCheck(browser):
     currentIP =  browser.getOutIP()
     if currentIP and currentIP != '' and browser.lastOutIP != currentIP:
-        rmlog(u'rmhelpers::ipCheck()', u'IP has changed: setting new => [%s]' % browser.lastOutIP)
+        rmlog(u'rmhelpers::ipCheck()', u'IP has changed: setting new => [%s]' % currentIP)
         browser.lastOutIP = currentIP
         # Not necessary on root-me.org
         #browser.doLogout()
@@ -41,13 +41,31 @@ def ipCheck(browser):
             rmlog(u'rmhelpers::ipCheck()', u'IP has changed: forcing new login')
             browser.doLogin()
         else:
-            rmlog(u'rmhelpers::ipCheck()', u'IP is %s, not doing anything !' % currentIP, 'warning' )
-            
+            browser.lastOutIP = currentIP
+            rmlog(u'rmhelpers::ipCheck()', u'IP is %s, not doing anything !' % browser.lastOutIP, 'warning' )
     else:
-        rmlog(u'rmhelpers::ipCheck()', u'IP is still the same => [%s], checking if we are logged in...' % browser.lastOutIP, 'debug2')
-        if not browser.loggedIn():
-            rmlog(u'rmhelpers::ipCheck()', u'We are not logged in: forcing new login')
-            browser.doLogin()
+        if browser.lastOutIP:
+            rmlog(u'rmhelpers::ipCheck()', u'IP is still the same => [%s], checking if we are logged in...' % browser.lastOutIP, 'debug2')
+            if not browser.loggedIn():
+                rmlog(u'rmhelpers::ipCheck()', u'We are not logged in: forcing new login')
+                browser.doLogin()
+
+def getChallengePath(uri):
+    if uri:
+        uriSplit = uri.split('/')
+        return '%s_%s' % (uriSplit[-2], uriSplit[-1])
+    else:
+        return None
+
+def getSshDict(ssHref):
+    if ssHref:
+        scheme, uri = ssHref.split("://")
+        creds, service = uri.split("@")
+        user, password = creds.split(":")
+        host, port = service.split(":")
+        return {'user': user, 'password': password, 'host': host, 'port': port}
+    else:
+        return None
 
 def rmWriteOut(msg):
     if glob.loginQueue:
@@ -108,6 +126,9 @@ def getRandInRange(min=100,max=999):
 def getRandDeltaInRange(min=100,max=999):
     return getNow() + getRandInRange(min,max)
 
+def sleep(secs):
+    rmlog("RMHelpers::sleep()", "Sleeping %s seconds..." % secs, "debug")
+    time.sleep(secs)
 
 # Register signal handlers
 # SIGINT - CTRL+C

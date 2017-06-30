@@ -1,13 +1,13 @@
 # rmshell
 
 ## About me
-*rmshell* is a tool to resolve [root-me.org](https://www.root-me.org/) challenges over a SOCKS proxy.  
+*rmshell* is a tool to resolve [root-me.org](https://www.root-me.org/) challenges over a SOCKS proxy.
 
-It's main purpose is to check whether the public IP has changed.  
-If yes it will perform a new login on root-me.org through the proxy, allowing the current public IP to SSH into the challenge.  
+It's main purpose is to check whether the public IP has changed.
+If yes it will perform a new login on root-me.org through the proxy, allowing the current public IP to SSH into the challenge.
 
 The second purpose is to provide a terminal-based navigation through the challenges
-and (still to be implemented) the selection of a challenge, opening the corresponding 
+and (still to be implemented) the selection of a challenge, opening the corresponding
 SSH shell in a dedicated panel over the SOCKS tunnel.
 
 ## Howto
@@ -25,7 +25,7 @@ challenger@computer:/ $ git clone https://github.com/hack5t3r1sk/rmshell.git
 challenger@computer:/ $ cd rmshell
 challenger@computer:/rmshell $ cp rmlogin.conf.example rmlogin.conf
 ```
-... then edit rmlogin.conf with your credentials and proxy-settings.  
+... then edit rmlogin.conf with your credentials and proxy-settings.
 You can avoid the proxy completely by setting
 ```
 proxyHost: ""
@@ -48,7 +48,7 @@ To start the auto-login script alone:
 challenger@computer:/rmshell $ python rmlogin.py
 ```
 
-If for some reason the program crashes and lets your terminal in a weird state, don't panic.  
+If for some reason the program crashes and lets your terminal in a weird state, don't panic.
 Just:
 ```bash
 challenger@computer:/rmshell $ stty sane
@@ -56,6 +56,25 @@ challenger@computer:/rmshell $ stty sane
 
 
 ## Changelog
+### v0.4
+* UI (rmscreen) : added Challenge interaction
+  - added 'Enter' command that opens the selected challenge. For now, 'Enter'
+    - suspends the curses interface
+    - displays all informations found on the challenge's page
+    - starts the challenge's SSH if available or a simple local shell
+    - restores the UI after exit
+  - improved logging
+
+* RMCategor(ies|y) / RMChallenge
+  - added save() and load() methods to RMCategories and RMChallenge (removed from rmlogin)
+  - improved state-saving by Noning some runtime-properties before saving (faster startup)
+  - introducing challenges directory structure:
+    - each challenge has its own directory
+    - its state is stored in an hidden directory
+
+* Base Browser
+  - added retry on GET requests, in case the connection was reset in the middle of a request
+
 ### v0.3
 * Code refactoring (mainly removing global stuff and splitting code into several files)
   - splitted the old RMBrowser into:
@@ -77,7 +96,7 @@ challenger@computer:/rmshell $ stty sane
   - added a "Loading, please wait" message at startup
   - adapted to the new RMCategories, RMCategory and RMChallenge classes
 
-### v0.2 
+### v0.2
 * RMBrowser / rmlogin / helpers
   - added a `glob` namespace for sharing global variables across all files
   - added a `debug` setting in rmlogin.conf that defines `glob.DEBUG`
@@ -91,6 +110,6 @@ challenger@computer:/rmshell $ stty sane
   - added a global `loginQueue` for logging the thread's output with the helper rmlog()
   - improved display logic to avoid flickering / weird chars
   - added challenges-widget for displaying categories, challenges and associated descriptions
-  - added the scrolling / selection logic to the list display 
+  - added the scrolling / selection logic to the list display
   - added update command `u` for refreshing / initializing the state-storage
   - added colors

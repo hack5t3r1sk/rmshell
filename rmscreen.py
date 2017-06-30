@@ -4,7 +4,7 @@
 from __future__ import division
 import glob
 
-import curses, time
+import curses, shlex, subprocess, os, time, traceback
 from threading  import Thread
 from rmhelpers import *
 from math import *
@@ -169,7 +169,7 @@ class LoginWidget():
         if len(lines[startIdx:endIdx]) >= self.height:
             self.win.addstr(lineNr,2, 'THIS IS STILL TOO BIG [%s]' % len(lines[startIdx:endIdx]))
             return
-            
+
         # Display the lines
         for loginLine in lines[startIdx:endIdx]:
             if loginLine:
@@ -177,7 +177,7 @@ class LoginWidget():
                 self.win.addstr(lineNr,2, truncLine(loginLine, self.width), curses.color_pair(2))
                 lineNr += 1
         self.win.border(1)
-        
+
         # Add title to the sub-window
         self.win.addstr(0,5,'| LOGIN LOG |', curses.color_pair(1))
         self.win.noutrefresh()
@@ -328,9 +328,10 @@ class ChallWidget():
                 self.winChall.addstr(2,2, 'No challenges found in browser. Press "u" to update !', curses.color_pair(3))
 
         # Display decriptions
-        self.winDesc.addstr(1, 2, self.catDesc, curses.color_pair(4))
+        self.winDesc.addstr(1, 2, truncLine('%s' % self.catDesc, self.widthChall * 2 - 3 ), curses.color_pair(4))
         curY, curX = self.winDesc.getyx()
-        self.winDesc.addstr(curY + 2, 2, self.challDesc, curses.color_pair(6))
+        if curY + 2 >= self.maxlines:
+            self.winDesc.addstr(curY + 2, 2, truncLine('%s' % self.challDesc, self.widthChall * 2 - 3 ), curses.color_pair(6))
 
         # Add borders and titles
         self.winCat.border(1)
@@ -394,7 +395,52 @@ class  loginThread():
                 self.log.append(loginLine)
         return self.log
 
+def startChallenge(selectedChallenge):
+    challError = False
+    # backup Queue
+    bkpQueue = glob.loginQueue
+    glob.loginQueue = False
+    with suspend_curses():
+        # Clear the screen
+        os.system('clear')
+        # Get the challenge
+        try:
+            selectedChallenge.getChallenge()
+        except Exception as e:
+            print "ERROR: unable to get the challenge right now: [%s]" % e
+            traceback.print_exc()
+            challError = True
+        else:
+            # Display the challenge's summary
+            selectedChallenge.printStatement()
 
+            # Restore Queue
+            glob.loginQueue = bkpQueue
+            if selectedChallenge.sshCmd:
+                # Start the challenge's SSH
+                print "Starting [%s]..." % ' '.join(selectedChallenge.sshCmd)
+                # DEBUG
+                #print selectedChallenge.sshCmd
+                ret = subprocess.call(' '.join(selectedChallenge.sshCmd), shell=True)
+                if ret >0:
+                    challError = True
+            else:
+                print "The challenge doesn't have an SSH link, starting local shell instead..."
+                # Start a simple local shell
+                subprocess.call(['/bin/bash'])
+
+        if not glob.loginQueue:
+            # Restore Queue
+            glob.loginQueue = bkpQueue
+
+        # TODO: flush user unput queue
+
+        if challError:
+            secs = 10
+            print
+            print "ERROR: Waiting %ss, to let you know about the error..." % secs
+            # DEBUG
+            time.sleep(10)
 
 def main(winMain):
     doQuit = False
@@ -434,7 +480,7 @@ def main(winMain):
     curses.init_pair(6, curses.COLOR_GREEN, curses.COLOR_BLACK)
     curses.init_pair(7, curses.COLOR_BLACK, curses.COLOR_GREEN)
     # HELP / USAGE
-    curses.init_pair(8, curses.COLOR_GREEN, curses.COLOR_WHITE)
+    curses.init_pair(8, curses.COLOR_BLACK, curses.COLOR_YELLOW)
     winMain.addstr(0,2," Loading, please wait... ", curses.color_pair(3))
     winMain.addstr(1,0,"")
     winMain.refresh()
@@ -445,7 +491,7 @@ def main(winMain):
     winMain.refresh()
     # Set the border on
     winMain.border(1)
-    
+
     # DEBUG
     #time.sleep(10)
     while not doQuit:
@@ -516,6 +562,10 @@ def main(winMain):
             winChall.moveChallDown()
         elif k == curses.KEY_UP:
             winChall.moveChallUp()
+        elif k == ord('\n'):
+            selectedChallenge = login_thread.browser.categories.get()[catListPos - 1].challenges[challListPos - 1]
+            selectedChallenge.browser = login_thread.browser
+            startChallenge(selectedChallenge)
         else:
             pass
 

@@ -3,44 +3,23 @@
 
 import glob
 
-import os, pickle, sys, time, yaml
+import os, cPickle, sys, time, traceback, yaml
 from rmhelpers import *
 from rmbrowser import RMBrowser
 
 def initBrowser(cfg):
     # Since there is a loginQueue global variable, pass it to the browser
     browser = RMBrowser(queue=glob.loginQueue)
-    
+
     # Set browser's proxy to our config-proxy
     if cfg['proxyHost'] != "":
         browser.setProxy(cfg['proxyHost'], cfg['proxyPort'])
 
-    # Check if we have a saved cfg['rmChallengesStore'] file to load
-    if os.path.exists(glob.cfg['rmChallengesStore']):
-        rmlog("rmlogin::initBrowser()", "Found saved state, loading...")
-        print "    => Found saved state, loading..."
-        # Unserialize the object
-        with open(glob.cfg['rmChallengesStore'], 'r') as stateObj:
-            state = pickle.load(stateObj)
-
-        # Check DB version
-        if state and 'version' in state:
-            if float(state['version']) == float(glob.rmVersion):
-                browser.categories = state['categories']
-            else:
-                if float(state['version']) < float(glob.rmVersion):
-                    rmlog(u'rmlogin::initBrowser()',u'The Database is older than the programm, you should set UPDATE = True or press "u" if you\'re in the UI.', 'warning')
-                else:
-                    rmlog(u'rmlogin::initBrowser()',u'The Database is newer than the programm, you should "git pull" and try again.', 'warning')
-
-        else:
-            rmlog(u'rmlogin::initBrowser()',u'The Database seems corrupt, you should set UPDATE = True or press "u" if you\'re in the UI.', 'warning')
-    else:
-        rmlog(u'rmlogin::initBrowser()',u'No Database found, starting update !')
-        glob.UPDATE = True
-    
     # Set the credentials in the browser instance
     browser.setCredentials(cfg['rmuser'], cfg['rmpassword'])
+
+    # Load categories, from file or website
+    browser.getCategories()
     return browser
 
 def readConf(cfgFile):
@@ -55,7 +34,28 @@ def init():
     setDebugLevel(glob.cfg['debug'])
     browser = initBrowser(glob.cfg)
     return browser
-    
+
+def updateCategories(browser):
+    try:
+        # Update categories (and all related challenges)
+        browser.updateCategories()
+    except Exception as e:
+        rmlog(u'rmlogin::start()',u'Exception while getting categories [%s]' % e, 'error')
+        traceback.print_exc()
+        glob.UPDATE = False
+        return False
+        #pass
+    else:
+        if browser.categories:
+            browser.categories.save()
+            rmlog(u'rmlogin::start()',u'UPDATE COMPLETED')
+            glob.UPDATE = False
+            return True
+        else:
+            glob.UPDATE = False
+            return False
+            rmlog(u'rmlogin::start()',u'UPDATE FAILED')
+
 def start(browser):
     # This is what this file is about:
     # - keep track of the current public IP seen by rootme
@@ -65,43 +65,41 @@ def start(browser):
     # Get home page
     # Uncomment to initialize browser.lastHomePage
     #browser.getHome()
-    
+
     while True:
         if glob.UPDATE:
-            rmlog(u'rmlogin::start()',u'Update-Mode ON, getting categories...')
-            try:
-                # Update categories (and all related challenges)
-                browser.getCategories()
-            except Exception as e:
-                rmlog(u'rmlogin::start()',u'Exception while getting categories [%s]' % e, 'error')
-                glob.UPDATE = False
-                pass
-            else:
-                with open(glob.cfg['rmChallengesStore'], 'w') as stateObj:
-                    state = {'version': glob.rmVersion,
-                             'categories': browser.categories}
-                    pickle.dump(state, stateObj)
-                glob.UPDATE = False
+            if not browser.lastOutIP:
+                 browser.lastOutIP = browser.getOutIP()
+            if browser.lastOutIP:
+                rmlog(u'rmlogin::start()',u'Update-Mode ON, getting categories...')
+                updateCategories(browser)
         else:
-            rmlog(u'rmlogin::start()',u'glob.UPDATE is [%s], doing IP check...' % glob.UPDATE, 'debug3')
-            try:
-                ipCheck(browser)
-            except Exception as e:
-                rmlog(u'rmlogin::start()',u'Exception while doing ipCheck() [%s]' % e, 'debug3')
-                pass
-        
-        # Wait glob.cfg['checkIpInterval']
-        if not glob.UPDATE:
+            if not glob.GETCHALL:
+                rmlog(u'rmlogin::start()',u'glob.UPDATE is [%s], doing IP check...' % glob.UPDATE, 'debug3')
+                try:
+                    ipCheck(browser)
+                except Exception as e:
+                    rmlog(u'rmlogin::start()',u'Exception while doing ipCheck() [%s]' % e, 'debug3')
+                    pass
+        # Waiting according to conditions
+        # This checks if UPDATE or GETCHALL
+        # and breaks out right away if True
+        if not glob.UPDATE and not glob.GETCHALL:
             if browser.lastOutIP and browser.crsfToken:
-                time.sleep(glob.cfg['checkIpInterval'])
+                rmlog(u'rmlogin::start()',u'Sleeping %ss...' % glob.cfg['checkIpInterval'], 'debug3')
+                for oneSec in range(1, int(glob.cfg['checkIpInterval'])):
+                    if not glob.UPDATE and not glob.GETCHALL:
+                        time.sleep(1)
             elif browser.lastOutIP and not browser.crsfToken:
-                time.sleep(5)
+                # We are online, but not logged in
+                rmlog(u'rmlogin::start()',u'Sleeping 3s...', 'debug3')
+                time.sleep(3)
             else:
+                rmlog(u'rmlogin::start()',u'Sleeping 1s...', 'debug3')
                 time.sleep(1)
-                
         else:
+            # We are OFFLINE, 1sec is more than enough
             rmlog(u'rmlogin::start()',u'Update-Mode detected, skipping IPCheckInterval...', 'debug3')
-            break
 
 
 def initStart():

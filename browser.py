@@ -3,7 +3,7 @@
 
 import glob
 
-import urllib, urllib2, json, os.path, re, time
+import json, os.path, re, time, urllib, urllib2
 from threading import Thread
 from bs4 import BeautifulSoup, UnicodeDammit
 from rmhelpers import *
@@ -23,6 +23,8 @@ class Browser(Thread):
         super(Browser, self).__init__()
         self.DEBUG = DEBUG
 
+        self.opener = None
+
         # Variables used for the import
         # Our CookieJar
         self.cj = None
@@ -32,6 +34,7 @@ class Browser(Thread):
         self.checkIpURL = "http://ipecho.net/plain"
         self.baseURL = "https://www.startpage.com"
         self.searchURL = "%s/do/search" % self.baseURL
+        self.resolveURL = "http://www.ip-tracker.org/resolve/domain-to-ip.php?ip="
 
         # The anti-CSRF token
         # This should be used by the getCrsfToken() method
@@ -180,13 +183,13 @@ class Browser(Thread):
 
     def setProxy(self,host="127.0.0.1", port=9050):
         rmlog(u'Browser::setProxy()', u'setting proxy [%s:%s].' % (host, port))
-        newopener = urllib2.build_opener(urllib2.HTTPCookieProcessor(self.cj), SocksiPyHandler(socks.PROXY_TYPE_SOCKS5, host, port))
-        urllib2.install_opener(newopener)
+        self.opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(self.cj), SocksiPyHandler(socks.PROXY_TYPE_SOCKS5, host, port))
+        urllib2.install_opener(self.opener)
 
     def unsetProxy(self):
         rmlog(u'Browser::unsetProxy()', u'UNSETTING proxy.')
-        newopener = urllib2.build_opener(urllib2.HTTPCookieProcessor(self.cj))
-        urllib2.install_opener(newopener)
+        self.opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(self.cj))
+        urllib2.install_opener(self.opener)
 
     def doreq(self,clean=True):
         try:
@@ -194,7 +197,7 @@ class Browser(Thread):
         except Exception, e:
             if hasattr(e, 'code'):
                 rmlog(u'Browser::doreq()', u'We failed with error code - %s.' % e.code, 'error')
-            elif hasattr(e, 'reason'):
+            if hasattr(e, 'reason'):
                 rmlog(u'Browser::doreq()', u'The error object has the following reason: [%s]' % e.reason, 'error')
                 rmlog(u'Browser::doreq()', u'This usually means the server doesn\'t exist, is down, or we don\'t have an internet connection.', 'error')
             self.lastError = e
@@ -202,27 +205,35 @@ class Browser(Thread):
         html = None
         ### Process response, try to get unicode in the end
         try:
-            uhtml = UnicodeDammit(self.response.read())
+            respData = self.response.read()
         except Exception, e:
-            uhtml = None
-            rmlog(u'Browser::doreq()', u'UnicodeDammit failed to convert response.', 'error')
-        if hasattr(uhtml, 'unicode_markup') and uhtml.unicode_markup:
-            html = uhtml.unicode_markup
+            rmlog(u'Browser::doreq()', u'Exception while reading response data: [%s]' % e, 'error')
+            return False
         else:
-            encoding = self.response.headers['content-type'].split('charset=')[-1]
-            if encoding and encoding != "":
-                try:
-                    html = unicode(self.response.read(), encoding)
-                except Exception, e:
-                    rmlog(u'Browser::doreq()', u'failed to unicode(response.read(), %s).' % encoding, 'error')
+            try:
+                uhtml = UnicodeDammit(respData)
+            except Exception, e:
+                uhtml = None
+                rmlog(u'Browser::doreq()', u'UnicodeDammit failed to convert response.', 'error')
+                return False
+            if hasattr(uhtml, 'unicode_markup') and uhtml.unicode_markup:
+                html = uhtml.unicode_markup
             else:
-                rmlog(u'Browser::doreq()', u'could not find source encoding, storing as it is.', 'error')
-                html = self.response.read()
-        if html:
-            self.lastHTMLorig = html
-            return html
-        else:
-            return self.response
+                encoding = self.response.headers['content-type'].split('charset=')[-1]
+                if encoding and encoding != "":
+                    try:
+                        html = unicode(self.response.read(), encoding)
+                    except Exception, e:
+                        rmlog(u'Browser::doreq()', u'failed to unicode(response.read(), %s).' % encoding, 'error')
+                        return False
+                else:
+                    rmlog(u'Browser::doreq()', u'could not find source encoding, storing as it is.', 'error')
+                    html = self.response.read()
+            if html:
+                self.lastHTMLorig = html
+                return html
+            else:
+                return False
 
     def getURL(self, url=None, data=None, referer="", extraData="", clean=True):
         if not url and self.baseURL and self.baseURL != "":
@@ -233,11 +244,15 @@ class Browser(Thread):
         else:
             geturl = url
         self.req = self.buildReq(geturl,None,referer,extraData)
-        if self.doreq():
-            self.lastVisited = url
-            return self.handleReqSuccess("GET", clean)
-        else:
-            return False
+        for i in range(1, 3):
+            if i >1:
+                rmlog(u'Browser::getURL()', u'Request seems to have failed, retrying...', 'warning')
+                sleep(3)
+            if self.doreq():
+                self.lastVisited = url
+                return self.handleReqSuccess("GET", clean)
+        # We tried 3 times, give up
+        return False
 
     def postURL(self, url=None, data=None, referrer="", extraData="", clean=True):
         if not url and self.baseURL and self.baseURL != "":
@@ -246,6 +261,8 @@ class Browser(Thread):
         #    data = {}
         data['formulaire_action_args'] = self.crsfToken
         self.req = self.buildReq(url,data, referrer, extraData)
+        # Here we don't want to retry the posts as we're
+        # not sure if the data was posted or not
         if self.doreq():
             return self.handleReqSuccess("POST",clean)
         else:
@@ -312,6 +329,24 @@ class Browser(Thread):
         if not currentIP:
             rmlog(u'Browser::getOutIP()', u'Unable to get the current public IP, check your connection and your proxy settings.', 'error')
         return currentIP
+
+    def resolveHost(self, hostname, port=80):
+        # http://www.ip-tracker.org/resolve/domain-to-ip.php?ip=root-me.org
+        resolveBS = self.getBeautifulSoup(self.getURL(
+                    '%s%s' % (self.resolveURL, hostname), clean=False))
+        if resolveBS:
+            ipHead = resolveBS.find('th', string='IP Address:')
+            ipAddr = ipHead.nextSibling.nextSibling
+            if ipAddr:
+                return ipAddr.string.strip().encode('utf8')
+            else:
+                return None
+
+    def urlEncode(self, utfUrl):
+        return urllib.urlencode(utfUrl)
+
+    def urlQuote(self, utfStr):
+        return urllib.quote(utfStr)
 
     def getBeautifulSoup(self, html):
         return BeautifulSoup(html, "html5lib")

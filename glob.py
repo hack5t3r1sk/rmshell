@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 global rmVersion
-rmVersion = '0.3'
+rmVersion = '0.4'
 
 ################## LOG AND DEBUG
 # Log level
@@ -35,4 +35,7 @@ cfg = None
 # Setting UPDATE = True will perform challenges update on startup
 global UPDATE
 UPDATE = False
+
+global GETCHALL
+GETCHALL = False
 ################## END: GLOBAL RUNTIME VARS
