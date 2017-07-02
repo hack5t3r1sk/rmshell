@@ -62,13 +62,14 @@ class Browser(Thread):
         self.lastLogoutPost = None
 
         # Our BeautifullSoup object
-        self.bs = None
+        self.BS = None
 
         # Our loggin queue
         self.queue = queue
 
         # Used to re-write URLs in grabbed HTML
         self.replaceURL = None
+        self.dnsCache = {}
 
         # Set User-Agent
         if userAgent:
@@ -250,7 +251,9 @@ class Browser(Thread):
                 sleep(3)
             if self.doreq():
                 self.lastVisited = url
-                return self.handleReqSuccess("GET", clean)
+                result = self.handleReqSuccess("GET", clean)
+                if result:
+                    return result
         # We tried 3 times, give up
         return False
 
@@ -269,18 +272,18 @@ class Browser(Thread):
             return False
 
     def handleReqSuccess(self, reqType="GET", clean=True):
-        self.bs = BeautifulSoup(self.lastHTMLorig, "html5lib")
+        self.BS = BeautifulSoup(self.lastHTMLorig, "html5lib")
         self.cleanHTML()
         self.cj.extract_cookies(self.response,self.req)
         self.cj.save(self.cookieFile,ignore_discard=True)
         if reqType == "GET":
-            self.lastHTML = self.bs
+            self.lastHTML = self.BS
             if clean:
                 return self.lastHTML.prettify()
             else:
                 return self.lastHTMLorig
         if reqType == "POST":
-            self.lastPostHTML = self.bs
+            self.lastPostHTML = self.BS
             if clean:
                 return self.lastPostHTML.prettify()
             else:
@@ -288,10 +291,10 @@ class Browser(Thread):
 
     def cleanHTML(self,html=None):
         if html:
-            tmpbs = BeautifulSoup(html, "html5lib")
+            tmpbs = self.getBeautifulSoup(html)
         else:
-            if self.bs:
-                tmpbs = self.bs
+            if self.BS:
+                tmpbs = self.BS
         if tmpbs:
             # BS("TAG") is the same as BS.find_all("TAG")
             for link in tmpbs('a'):
@@ -320,7 +323,7 @@ class Browser(Thread):
         if html:
             return tmpbs.prettify()
         else:
-            self.bs = tmpbs
+            self.BS = tmpbs
 
     def getOutIP(self):
         rmlog(u'Browser::getOutIP()', u'getting our current public IP.', 'debug3')
@@ -331,16 +334,20 @@ class Browser(Thread):
         return currentIP
 
     def resolveHost(self, hostname, port=80):
-        # http://www.ip-tracker.org/resolve/domain-to-ip.php?ip=root-me.org
-        resolveBS = self.getBeautifulSoup(self.getURL(
-                    '%s%s' % (self.resolveURL, hostname), clean=False))
-        if resolveBS:
-            ipHead = resolveBS.find('th', string='IP Address:')
-            ipAddr = ipHead.nextSibling.nextSibling
-            if ipAddr:
-                return ipAddr.string.strip().encode('utf8')
+        if not hostname in self.dnsCache:
+            # http://www.ip-tracker.org/resolve/domain-to-ip.php?ip=root-me.org
+            resolveBS = self.getBeautifulSoup(self.getURL(
+                        '%s%s' % (self.resolveURL, hostname), clean=False))
+            if resolveBS:
+                ipHead = resolveBS.find('th', string='IP Address:')
+                ipAddr = ipHead.nextSibling.nextSibling
+                if ipAddr:
+                    self.dnsCache[hostname] = ipAddr.string.strip().encode('utf8')
+                else:
+                    return None
             else:
                 return None
+        return self.dnsCache[hostname]
 
     def urlEncode(self, utfUrl):
         return urllib.urlencode(utfUrl)
@@ -348,8 +355,33 @@ class Browser(Thread):
     def urlQuote(self, utfStr):
         return urllib.quote(utfStr)
 
+    def download(self, srcUrl, dstPath):
+        chunkSize = 16 * 1024
+        try:
+            response = urlopen(srcUrl)
+            with open(dstPath, 'wb') as f:
+                while True:
+                    chunk = response.read(chunkSize)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+        except Exception as e:
+            rmlog(u'Browser::download()', u'Exception while downloading [%s] to [%s]: %s' % (srcUrl, dstPath, e), 'error')
+            return False
+        else:
+            rmlog(u'Browser::download()', u'Successfully downloaded [%s] to [%s]' % (srcUrl, dstPath), 'debug')
+            return True
+
     def getBeautifulSoup(self, html):
-        return BeautifulSoup(html, "html5lib")
+        BS = None
+        if html:
+            try:
+                BS = BeautifulSoup(html, "html5lib")
+            except Exception as e:
+                rmlog(u'Browser::getBeautifulSoup()', u'BeautifulSoup could not parse the given HTML.', 'error')
+        else:
+            rmlog(u'Browser::getBeautifulSoup()', u'HTML is [%s], not trying to parse.' % html, 'error')
+        return BS
 
     def getHome(self):
         rmlog(u'Browser::getHome()', u'getting home page.', 'debug3')
@@ -357,8 +389,8 @@ class Browser(Thread):
         return self.lastHomePage
 
     def getTitle(self):
-        if self.bs:
-            return self.bs.title.string.encode('utf8').strip().replace("  "," ").replace("\n"," ")
+        if self.BS:
+            return self.BS.title.string.encode('utf8').strip().replace("  "," ").replace("\n"," ")
 
     # TODO: fake a real browser by downloading all assets/images/...
     # but maybe this is not a good idea...

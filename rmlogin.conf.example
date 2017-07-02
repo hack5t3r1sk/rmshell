@@ -1,8 +1,20 @@
+# ROOT-ME.ORG - you can leave it blank if you only want to test
 rmuser: "YOUR_ROOTME_LOGIN"
 rmpassword: "YOUR_ROOTME_PASSWORD"
+debug: 2
 checkIpInterval: 20
+
+### Browser settings
 # Set to "" to ignore proxy
 proxyHost: "localhost"
 proxyPort: 9050
-debug: 2
-rmChallengesStore: "rmchallenges.db"
+# User-Agent - please don't change this, it is our only advertisment :=]
+rmUserAgent: "RMShell-v0.4 (github.com/hack5t3r1sk/rmshell)"
+rmLogFile: "rmlogin.log"
+
+### Challenges tree organisation
+challBaseDir: "challenges"
+challHiddenDir: ".rmshell"
+challengesStore: "rmchallenges.db"
+challStore: "challenge.db"
+flagFileName: "flag"

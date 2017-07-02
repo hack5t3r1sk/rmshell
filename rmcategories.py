@@ -30,7 +30,7 @@ class RMCategories:
         if self.BS and len(self.BS) >0:
             # Parse the soup for DIVs with class="tile"
             for catId, catDiv in enumerate(self.BS('div', {'class': "tile"})):
-                if breaker >=2:
+                if breaker >=1:
                     break
                 # Get the category object from the sub-soup
                 tmpCat = RMCategory(catDiv, self.BS, catId, self.browser)
@@ -38,16 +38,12 @@ class RMCategories:
                     self.categories.append(tmpCat)
                     # DEBUG
                     # Uncomment to limit the number of categories
-                    breaker += 1
+                    #breaker += 1
                     sleep(3)
 
         # Update our categories list
-        self.list = [cat.title for cat in self.categories]
+        self.updateList()
 
-        # unset browser and BS for serializing,
-        # browser is a thread and BS is heavy
-        self.browser = None
-        self.BS = None
         rmlog(u'RMCategories::init()', u'end of getCategories().', 'debug3')
 
     def __len__(self):
@@ -58,6 +54,10 @@ class RMCategories:
 
     def get(self):
         return self.categories
+
+    def updateList(self):
+        self.list = ['%s (%s)' % (cat.title, len(cat.challenges)) for cat in self.categories]
+        return self.list
 
     def save(self):
         # Create base dir-structure if it's not there
@@ -80,15 +80,27 @@ class RMCategories:
                 return False
 
         if os.path.exists(hiddenDir):
+            # unset browser and BS for serializing,
+            # browser is a thread and BS is heavy
+            bkpBrowser = self.browser
+            bkpBS = self.BS
+            self.browser = None
+            self.BS = None
             rmlog(u'RMCategories::start()',u'Saving RMCategories object to [%s]' % self.storePath)
             with open(self.storePath, 'wb') as stateObj:
                 try:
                     state = {'version': glob.rmVersion,
                              'categories': self}
                     cPickle.dump(state, stateObj, 2)
-                except:
+                except Exception as e:
                     rmlog(u'RMCategories::save()',u'Exception while saving categories to [%s]: %s' % (self.storePath, e), 'error')
-                    return False
+                    success = False
+                else:
+                    success = True
+            # restore browser and BS
+            self.browser = bkpBrowser
+            self.BS = bkpBS
+            return success
 
     def load(self):
         if os.path.exists(self.storePath):

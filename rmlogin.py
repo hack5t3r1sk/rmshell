@@ -9,8 +9,7 @@ from rmbrowser import RMBrowser
 
 def initBrowser(cfg):
     # Since there is a loginQueue global variable, pass it to the browser
-    browser = RMBrowser(queue=glob.loginQueue)
-
+    browser = RMBrowser(queue=glob.loginQueue, userAgent=cfg['rmUserAgent'])
     # Set browser's proxy to our config-proxy
     if cfg['proxyHost'] != "":
         browser.setProxy(cfg['proxyHost'], cfg['proxyPort'])

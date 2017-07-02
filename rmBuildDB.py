@@ -7,7 +7,7 @@ from rmhelpers import *
 import rmlogin
 
 browser = rmlogin.init()
-glob.DEBUG = 2
+glob.DEBUG = 3
 browser.lastOutIP = browser.getOutIP()
 
 if glob.UPDATE:
@@ -19,6 +19,9 @@ if glob.UPDATE:
 
 # Get all challenges
 for cat in browser.categories.get():
+    print
+    print
+    print
     print "####################### CATEGORY: %s" % cat
     for chall in cat.challenges:
         chall.browser = browser
@@ -31,7 +34,10 @@ for cat in browser.categories.get():
             challError = True
         else:
             # Display the challenge's summary
+            print
             chall.printStatement()
+            print
+            print
         print
         print
         print

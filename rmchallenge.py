@@ -37,62 +37,61 @@ class RMChallenge:
         self.storePath = None
 
         if self.challFields:
-                validTD   = self.challFields[0]
-                linkTD    = self.challFields[1]
-                valsTD    = self.challFields[2]
-                pointsTD  = self.challFields[3]
-                diffTD    = self.challFields[4]
-                noteTD    = self.challFields[6]
-                soluTD    = self.challFields[7]
+            validTD   = self.challFields[0]
+            linkTD    = self.challFields[1]
+            valsTD    = self.challFields[2]
+            pointsTD  = self.challFields[3]
+            diffTD    = self.challFields[4]
+            noteTD    = self.challFields[6]
+            soluTD    = self.challFields[7]
 
-                # Is it already validated ? TRUE/FALSE
-                self.valid = not (validTD.find('img',{'alt': 'pas_valide'}))
+            # Is it already validated ? TRUE/FALSE
+            self.valid = not (validTD.find('img',{'alt': 'pas_valide'}))
 
-                # Extract challenge link
-                tmpATag = linkTD.find('a')
-                if tmpATag:
-                    self.title = tmpATag.string.strip().encode("utf-8")
-                    self.href = tmpATag.attrs['href'].encode("utf-8")
-                    self.description = tmpATag.attrs['title'].encode("utf-8")
-                    rmlog(u'RMChallenge::getChallenge()', u'initialising challenge...', 'debug3')
+            # Extract challenge link
+            tmpATag = linkTD.find('a')
+            if tmpATag:
+                self.title = tmpATag.string.strip().encode("utf-8")
+                self.href = tmpATag.attrs['href'].encode("utf-8")
+                self.description = tmpATag.attrs['title'].encode("utf-8")
+                rmlog(u'RMChallenge::getChallenge()', u'initialising challenge...', 'debug3')
 
-                    # Extract challenge points
-                    tmpPoints = pointsTD.string
-                    if tmpPoints and len(tmpPoints) >0:
-                        self.points = int(tmpPoints.strip())
-                    else:
-                        self.points = -1
-
-                    # Extract difficulty
-                    if diffTD.find('span', {'class': 'difficulte1a'}):
-                        self.difficulty = 1
-                    elif diffTD.find('span', {'class': 'difficulte2a'}):
-                        self.difficulty = 2
-                    elif diffTD.find('span', {'class': 'difficulte3a'}):
-                        self.difficulty = 3
-                    elif diffTD.find('span', {'class': 'difficulte4a'}):
-                        self.difficulty = 4
-                    elif diffTD.find('span', {'class': 'difficulte36a'}):
-                        self.difficulty = 36
-                    else:
-                        self.difficulty = 0
-
-                    # Extract challenge solutions
-                    tmpSolus = soluTD.string
-                    if tmpSolus and len(tmpSolus) >0:
-                        self.solutions = int(tmpSolus.strip())
-                    else:
-                        self.solutions = -1
-
-                    # Initialize local variables
-                    self.path = "%s/%s" % (glob.cfg['challBaseDir'], getChallengePath(self.href))
-
-                    # TODO: This should be commented and only done
-                    # when the user selects a challenge
-                    #self.getChallenge()
-                    # END TODO
+                # Extract challenge points
+                tmpPoints = pointsTD.string
+                if tmpPoints and len(tmpPoints) >0:
+                    self.points = int(tmpPoints.strip())
                 else:
-                    rmlog(u'RMChallenge::getChallenge()', u'couldn\'t find a link for title/href/description, skipping this row !', 'error')
+                    self.points = -1
+
+                # Extract difficulty
+                if diffTD.find('span', {'class': 'difficulte1a'}):
+                    self.difficulty = 1
+                elif diffTD.find('span', {'class': 'difficulte2a'}):
+                    self.difficulty = 2
+                elif diffTD.find('span', {'class': 'difficulte3a'}):
+                    self.difficulty = 3
+                elif diffTD.find('span', {'class': 'difficulte4a'}):
+                    self.difficulty = 4
+                elif diffTD.find('span', {'class': 'difficulte36a'}):
+                    self.difficulty = 36
+                else:
+                    self.difficulty = 0
+
+                # Extract challenge solutions
+                tmpSolus = soluTD.string
+                if tmpSolus and len(tmpSolus) >0:
+                    self.solutions = int(tmpSolus.strip())
+                else:
+                    self.solutions = -1
+
+                # Initialize local variables
+                self.path = "%s/%s" % (glob.cfg['challBaseDir'], getChallengePath(self.href))
+
+                # Set the store path before going further
+                self.storePath = '%s/%s/%s' % (self.path, glob.cfg['challHiddenDir'], glob.cfg['challStore'])
+                rmlog(u'RMChallenge::init()', u'storePath is set to [%s]' % self.storePath, 'debug3')
+            else:
+                rmlog(u'RMChallenge::getChallenge()', u'couldn\'t find a link for title/href/description, skipping this row !', 'error')
         # unset browser and BS for serializing,
         # browser is a thread and BS is heavy
         self.browser = None
@@ -107,8 +106,9 @@ class RMChallenge:
 
     def getChallenge(self, browser=None):
         # Set the store path before going further
-        self.storePath = '%s/%s/%s' % (self.path, glob.cfg['challHiddenDir'], glob.cfg['challStore'])
-        rmlog(u'RMChallenge::getChallenge()', u'storePath is set to [%s]' % self.storePath, 'debug3')
+        if not self.storePath or self.storePath == "":
+            self.storePath = '%s/%s/%s' % (self.path, glob.cfg['challHiddenDir'], glob.cfg['challStore'])
+            rmlog(u'RMChallenge::getChallenge()', u'storePath is set to [%s]' % self.storePath, 'debug3')
 
         # If we already have a store
         if os.path.exists(self.storePath):
@@ -120,7 +120,7 @@ class RMChallenge:
             if browser:
                 self.browser = browser
             if self.browser and self.browser.lastOutIP:
-                rmlog(u'RMChallenge::getChallenge()', u'getting URL [%s]' % self.href, 'debug2')
+                rmlog(u'RMChallenge::getChallenge()', u'getting URL [%s]' % self.href, 'debug3')
 
                 # Get the HTML
                 challengeHTML = self.browser.getURL('%s/%s' % (self.browser.baseURL, self.href), clean=False)
@@ -129,21 +129,19 @@ class RMChallenge:
                 else:
                     rmlog(u'RMChallenge::getChallenge()', u'HTML is [%s]' % challengeHTML, 'warning')
                 if self.BS:
+                    # Isolate the statement DIV
                     self.extractStatement()
 
-                    ### Now we can be saved
-                    # unset browser and BS for serializing,
-                    # browser is a thread and BS is heavy
-                    bkpBrowser = self.browser
-                    bkpBS = self.BS
-                    self.browser = None
-                    self.BS = None
-                    self.challFields = None
-                    self.statementBS = None
-                    self.save()
-                    # Restore the browser and the BS after saving
-                    self.browser = bkpBrowser
-                    self.BS = bkpBS
+                    # Set properties
+                    self.parseStatement()
+
+                    # Save us to make sure the dirs are created
+                    if self.save():
+                        # Download the files
+                        for link in self.dlLinks:
+                            filename = link.split('/')[-1]
+                            rmlog(u'RMChallenge::getChallenge()', u'downloading [%s] to [%s]' % (link, filename))
+                            self.browser.download(link, filename)
                 else:
                     rmlog(u'RMChallenge::getChallenge()', u'self.BS is [%s]' % self.BS, 'warning')
             else:
@@ -155,48 +153,55 @@ class RMChallenge:
     def extractStatement(self):
         if self.BS:
             # Find the <h4>Statement</h4>'s next DIV
-            statementBS = self.BS.find('h4', string="Statement").nextSibling.nextSibling
-            if statementBS:
-                nextSib = statementBS.nextSibling
+            self.statementBS = self.BS.find('h4', string="Statement")
+            if self.statementBS:
+                nextSib = self.statementBS.nextSibling
                 if nextSib.nextSibling:
-                    summaryBS =  nextSib.nextSibling
+                    self.summaryBS = nextSib.nextSibling
                 else:
-                    summaryBS =  nextSib
-                if summaryBS:
-                    # Detect source code
-                    srcDivs = statementBS('pre')
-                    source = ""
-                    for src in srcDivs:
-                        source += "------------------ BEGIN ------------------\n"
-                        for srcLine in src('li'):
-                            source += '%s\n' % srcLine.text.encode('utf8')
-                        source += "------------------- END -------------------\n"
-                        self.sources.append(source)
-
-                    # Detect download link
-                    dlLinks = statementBS('a', {'class': 'download'})
-                    for link in dlLinks:
-                        self.dlLinks.append(link)
-
-                    # Grab the SSH infos
-                    sshLinkTag = statementBS.find('a', {'href': re.compile('ssh://.*\.root-me.org')})
-                    if sshLinkTag:
-                        # Get the actual link
-                        self.ssh = getSshDict(sshLinkTag.attrs['href'])
-                    return {'sources': self.sources,
-                            'dlLinks': self.dlLinks,
-                            'ssh': self.ssh}
-                else:
-                    rmlog(u'RMChallenge::extractStatement()', u'Couldn\'t find Summary', 'error')
-                    return None
+                    self.summaryBS = nextSib
             else:
-                rmlog(u'RMChallenge::extractStatement()', u'Couldn\'t find Statement', 'error')
-                return None
+                rmlog(u'RMChallenge::parseStatement()', u'Couldn\'t find Statement', 'error')
+                self.summaryBS = None
         else:
-            rmlog(u'RMChallenge::extractStatement()', u'No BS, do getChallenge(browser) first !', 'error')
+            rmlog(u'RMChallenge::parseStatement()', u'No BS, do getChallenge(browser) first !', 'error')
             return None
 
-    def getSshCmdPass(self):
+    def parseStatement(self):
+        if self.summaryBS:
+            # Detect source code
+            srcDivs = self.summaryBS('pre')
+            source = ""
+            for src in srcDivs:
+                source += "------------------ BEGIN ------------------\n"
+                for srcLine in src('li'):
+                    source += '%s\n' % srcLine.text.encode('utf8')
+                source += "------------------- END -------------------\n"
+                self.sources.append(source)
+
+            # Detect download link
+            dlLinks = self.summaryBS('p', {'class': 'download'})
+            for uri in dlLinks:
+                link = '%s/%s' % (self.browser.baseURL, uri.find('a').attrs['href'])
+                self.dlLinks.append(link)
+
+            # Grab the SSH infos
+            sshLinkTag = self.summaryBS.find('a', {'href': re.compile('ssh://.*\.root-me\.org')})
+            if sshLinkTag:
+                # Get the actual link
+                self.ssh = getSshDict(sshLinkTag.attrs['href'])
+        else:
+            rmlog(u'RMChallenge::parseStatement()', u'Couldn\'t find Summary', 'error')
+            return None
+
+    def getStatement(self):
+        return {'sources': self.sources,
+                'dlLinks': self.dlLinks,
+                'ssh': self.ssh}
+
+    def getSshCmdPass(self, browser=None):
+        if browser:
+            self.browser = browser
         if self.ssh and self.browser:
             userPort = "-p %s %s@" % (self.ssh['port'], self.ssh['user'])
             if glob.cfg['proxyHost'] != '':
@@ -239,7 +244,7 @@ class RMChallenge:
         if len(self.dlLinks) >0:
             print "### Files to download"
             for link in self.dlLinks:
-                print " - %s" % link.attrs['href']
+                print " - %s" % link
             print
         if self.ssh:
             print "### SSH"
@@ -249,7 +254,7 @@ class RMChallenge:
             print
 
     def save(self):
-        # Create challenge dir-structure if any of it is not there
+        # Create challenge dir-structure if any part of it is not there
         if not os.path.exists(glob.cfg['challBaseDir']):
             rmlog(u'RMChallenge::save()',u'Creating challenge\'s dir-struct [%s]...' % glob.cfg['challBaseDir'])
             try:
@@ -273,6 +278,16 @@ class RMChallenge:
                 return False
 
         # Should now be there
+        # unset browser and BS for serializing,
+        # browser is a thread and BS is heavy
+        bkpBrowser = self.browser
+        bkpBS = self.BS
+        self.browser = None
+        self.BS = None
+        self.challFields = None
+        self.summaryBS = None
+
+        # Serialize and dump to file
         if os.path.exists('%s/%s' % (self.path, glob.cfg['challHiddenDir'],)):
             rmlog(u'RMChallenge::save()',u'Saving challenge to [%s]...' % self.storePath)
             with open(self.storePath, 'wb') as stateObj:
@@ -282,8 +297,17 @@ class RMChallenge:
                     cPickle.dump(state, stateObj, 2)
                 except:
                     rmlog(u'RMChallenge::save()',u'Exception while saving challenge [%s]: %s' % (self, e), 'error')
-                    return False
+                    # Restore the browser and the BS after failing
+                    self.browser = bkpBrowser
+                    self.BS = bkpBS
+                    success = False
+                else:
+                    success = True
 
+        # Restore the browser and the BS after saving
+        self.browser = bkpBrowser
+        self.BS = bkpBS
+        return success
 
     def load(self):
         if os.path.exists(self.storePath):
@@ -310,5 +334,3 @@ class RMChallenge:
                 return False
                 rmlog(u'rmlogin::initBrowser()',u'The Database seems corrupt, you should set UPDATE = True or press "u" if you\'re in the UI.', 'warning')
 
-    def copyMe(self):
-        return self

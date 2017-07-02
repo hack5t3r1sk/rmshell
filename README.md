@@ -15,7 +15,7 @@ SSH shell in a dedicated panel over the SOCKS tunnel.
 ### Dependencies
 * Python
   * BeautifulSoup (from bs4 import BeautifulSoup, UnicodeDammit)
-  * atexit, Datetime, json, os, pickle, Queue, signal, sys, time, urllib, urllib2, yaml
+  * atexit, Datetime, json, os, cPickle, Queue, signal, sys, time, urllib, urllib2, yaml
 * Network (optional)
   * a SOCKS proxy (SSH/Tor/etc...)
 
@@ -60,20 +60,26 @@ challenger@computer:/rmshell $ stty sane
 * UI (rmscreen) : added Challenge interaction
   - added 'Enter' command that opens the selected challenge. For now, 'Enter'
     - suspends the curses interface
+    - parse the challenge's page
+    - download any file provided (download-links)
     - displays all informations found on the challenge's page
     - starts the challenge's SSH if available or a simple local shell
     - restores the UI after exit
   - improved logging
 
-* RMCategor(ies|y) / RMChallenge
+* RMCategor(ies|y) / RMChallenge / rmlogin
   - added save() and load() methods to RMCategories and RMChallenge (removed from rmlogin)
   - improved state-saving by Noning some runtime-properties before saving (faster startup)
   - introducing challenges directory structure:
     - each challenge has its own directory
-    - its state is stored in an hidden directory
+    - its state is stored in a hidden directory
+  - refactor of rmlogin workflow
+  - added rmBuildDB.py for building the whole challenges Tree (this is more for testing, in practice you only want the challenge that you have worked on)
 
 * Base Browser
   - added retry on GET requests, in case the connection was reset in the middle of a request
+  - added DNS-cache to avoid secure-resolve of challenges SSH servers multiple time
+  - added download method for downloading files over proxy
 
 ### v0.3
 * Code refactoring (mainly removing global stuff and splitting code into several files)

@@ -72,8 +72,8 @@ class RMBrowser(browser.Browser):
     def loggedIn(self):
         if self.lastOutIP:
             self.getHome()
-            if self.bs:
-                foundAccount = self.bs.find("a",{'href': "./?page=preferences&lang=en" })
+            if self.BS:
+                foundAccount = self.BS.find("a",{'href': "./?page=preferences&lang=en" })
                 if foundAccount:
                     rmlog(u'RMBrowser::loggedIn()', u'LOGGED IN.', 'debug')
                     return True

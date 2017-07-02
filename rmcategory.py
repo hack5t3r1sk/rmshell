@@ -152,7 +152,7 @@ class RMCategory:
     def getPages(self, challDiv):
         for pageItem in challDiv('li'):
             if 'class' in pageItem.attrs:
-                rmlog('RMCategory::getPages()', u'Skipping cuurent page', 'debug2')
+                rmlog('RMCategory::getPages()', u'Skipping current page', 'debug2')
             else:
                 pageLink = pageItem.find('a', {'class': 'lien_pagination'})
                 if pageLink:

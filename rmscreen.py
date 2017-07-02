@@ -259,7 +259,8 @@ class ChallWidget():
                     # Is this the selected category ?
                     if ((catLineNr + startIdx) == catListPos):
                         # Display TITLE with inverted list-colors
-                        self.winCat.addstr(catLineNr, 2, " %s " % category, curses.color_pair(5))
+                        self.winCat.addstr(catLineNr, 2, " %s " % truncLine(
+                                                category, self.widthCat - 2), curses.color_pair(5))
                         self.catDesc = "[  Category ] '%s'" % browser.categories[catListPos - 1].description
 
                         # Populate challenges
@@ -395,7 +396,7 @@ class  loginThread():
                 self.log.append(loginLine)
         return self.log
 
-def startChallenge(selectedChallenge):
+def startChallenge(selectedChallenge, browser, forceLocalShell=False):
     challError = False
     # backup Queue
     bkpQueue = glob.loginQueue
@@ -411,36 +412,49 @@ def startChallenge(selectedChallenge):
             traceback.print_exc()
             challError = True
         else:
+            selectedChallenge.browser = browser
+            # Store current working dir and cd into challDir
+            currentCwd = os.getcwd()
+            os.chdir(selectedChallenge.path)
             # Display the challenge's summary
             selectedChallenge.printStatement()
 
             # Restore Queue
             glob.loginQueue = bkpQueue
-            if selectedChallenge.sshCmd:
-                # Start the challenge's SSH
-                print "Starting [%s]..." % ' '.join(selectedChallenge.sshCmd)
-                # DEBUG
-                #print selectedChallenge.sshCmd
-                ret = subprocess.call(' '.join(selectedChallenge.sshCmd), shell=True)
-                if ret >0:
+            if selectedChallenge.ssh and not forceLocalShell:
+                # Get cmdString and password
+                (sshCmd, password) = selectedChallenge.getSshCmdPass()
+                if sshCmd:
+                    # Start the challenge's SSH
+                    print "Starting [%s]..." % sshCmd
+                    # DEBUG
+                    #print selectedChallenge.sshCmd
+                    ret = subprocess.call(sshCmd, shell=True)
+                    if ret >0:
+                        challError = True
+                else:
                     challError = True
+                    print
+                    print "ERROR: Invalid SSH command [%s], aborting !" % sshCmd
+                    print
             else:
                 print "The challenge doesn't have an SSH link, starting local shell instead..."
                 # Start a simple local shell
                 subprocess.call(['/bin/bash'])
+            # Restore previous working dir
+            os.chdir(currentCwd)
 
         if not glob.loginQueue:
             # Restore Queue
             glob.loginQueue = bkpQueue
 
-        # TODO: flush user unput queue
-
+        # TODO: flush user input queue
         if challError:
             secs = 10
             print
-            print "ERROR: Waiting %ss, to let you know about the error..." % secs
+            print "ERROR: Waiting %ss, to let you know about the error. Press CTRL+C to keep reading..." % secs
             # DEBUG
-            time.sleep(10)
+            time.sleep(secs)
 
 def main(winMain):
     doQuit = False
@@ -564,8 +578,7 @@ def main(winMain):
             winChall.moveChallUp()
         elif k == ord('\n'):
             selectedChallenge = login_thread.browser.categories.get()[catListPos - 1].challenges[challListPos - 1]
-            selectedChallenge.browser = login_thread.browser
-            startChallenge(selectedChallenge)
+            startChallenge(selectedChallenge, login_thread.browser)
         else:
             pass
 
