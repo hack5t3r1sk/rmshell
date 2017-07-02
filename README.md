@@ -4,11 +4,15 @@
 *rmshell* is a tool to resolve [root-me.org](https://www.root-me.org/) challenges over a SOCKS proxy.
 
 It's main purpose is to check whether the public IP has changed.
-If yes it will perform a new login on root-me.org through the proxy, allowing the current public IP to SSH into the challenge.
+If yes it will perform a new login on root-me.org through the proxy,
+allowing the current public IP to SSH into the challenge.
 
 The second purpose is to provide a terminal-based navigation through the challenges
-and (still to be implemented) the selection of a challenge, opening the corresponding
-SSH shell in a dedicated panel over the SOCKS tunnel.
+and the selection of a challenge, opening the corresponding SSH shell in a dedicated
+panel over the SOCKS tunnel.
+
+If you're not interested in the proxy feature, you still can use this tool in order to
+solve the challenges without any browser. See [Installation / Usage](#installation--usage) below
 
 ## Howto
 
