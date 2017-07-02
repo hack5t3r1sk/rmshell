@@ -135,13 +135,14 @@ class RMChallenge:
                     # Set properties
                     self.parseStatement()
 
-                    # Save us to make sure the dirs are created
-                    if self.save():
-                        # Download the files
-                        for link in self.dlLinks:
-                            filename = link.split('/')[-1]
-                            rmlog(u'RMChallenge::getChallenge()', u'downloading [%s] to [%s]' % (link, filename))
-                            self.browser.download(link, filename)
+                    # IF LOGGED-IN, save us to make sure the dirs are created
+                    if self.browser.loggedIn:
+                        if self.save():
+                            # Download the files
+                            for link in self.dlLinks:
+                                filename = link.split('/')[-1]
+                                rmlog(u'RMChallenge::getChallenge()', u'downloading [%s] to [%s]' % (link, filename))
+                                self.browser.download(link, filename)
                 else:
                     rmlog(u'RMChallenge::getChallenge()', u'self.BS is [%s]' % self.BS, 'warning')
             else:

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 global rmVersion
-rmVersion = '0.4'
+rmVersion = '0.5'
 
 ################## LOG AND DEBUG
 # Log level

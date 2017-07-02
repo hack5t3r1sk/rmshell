@@ -31,8 +31,30 @@ class RMBrowser(browser.Browser):
         self.status = "IDLE"
         self.ready = True
 
+    def ipCheck(self):
+        currentIP = self.getOutIP()
+        if currentIP and currentIP != '' and self.lastOutIP != currentIP:
+            rmlog(u'RMBrowser::ipCheck()', u'IP has changed: setting new => [%s]' % currentIP)
+            self.lastOutIP = currentIP
+            # Not necessary on root-me.org
+            #browser.doLogout()
+            if currentIP and self.login and self.passwd:
+                rmlog(u'RMBrowser::ipCheck()', u'IP has changed: forcing new login')
+                self.doLogin()
+            else:
+                rmlog(u'RMBrowser::ipCheck()', u'IP is %s, no credentials, skipping login check.' % self.lastOutIP, 'warning' )
+        else:
+            if self.lastOutIP:
+                if self.login and self.passwd:
+                    rmlog(u'RMBrowser::ipCheck()', u'IP is still the same => [%s], checking if we are logged in...' % self.lastOutIP, 'debug2')
+                    if not self.loggedIn:
+                        rmlog(u'RMBrowser::ipCheck()', u'We are not logged in: forcing new login')
+                        self.doLogin()
+                else:
+                    rmlog(u'RMBrowser::ipCheck()', u'IP is still the same => [%s], no credentials, skipping login check.' % self.lastOutIP, 'debug2')
+
     def doLogin(self):
-        if self.lastOutIP and self.login != "" and self.passwd != "":
+        if self.lastOutIP and self.login and self.passwd:
             # Get login page to get a cookie
             # and the login form with token
             self.lastLoginPage = self.getURL(self.loginURL)
@@ -62,26 +84,27 @@ class RMBrowser(browser.Browser):
         return self.lastLoginPost
 
     def doLogout(self):
-        if self.lastOutIP and self.loggedIn():
+        if self.lastOutIP and self.loggedIn:
             self.lastLogoutPost = self.getURL(self.logoutURL, None, self.lastVisited)
             return self.lastLogoutPost
         else:
             rmlog(u'RMBrowser::doLogin()', u'we are already logged out, nothing to do.', 'debug2')
             return self.lastLogoutPost
 
-    def loggedIn(self):
+    def isLoggedIn(self):
         if self.lastOutIP:
             self.getHome()
             if self.BS:
                 foundAccount = self.BS.find("a",{'href': "./?page=preferences&lang=en" })
                 if foundAccount:
-                    rmlog(u'RMBrowser::loggedIn()', u'LOGGED IN.', 'debug')
-                    return True
+                    rmlog(u'RMBrowser::isLoggedIn()', u'LOGGED IN.', 'debug')
+                    self.loggedIn = True
                 else:
-                    rmlog(u'RMBrowser::loggedIn()', u'NOT LOGGED IN.', 'debug')
-                    return False
+                    rmlog(u'RMBrowser::isLoggedIn()', u'NOT LOGGED IN.', 'debug')
+                    self.loggedIn = False
         else:
-            rmlog(u'RMBrowser::loggedIn()', u'lastOutIP is [%s]' % self.lastOutIP, 'debug2')
+            rmlog(u'RMBrowser::isLoggedIn()', u'lastOutIP is [%s]' % self.lastOutIP, 'debug2')
+        return self.loggedIn
 
     def getCrsfToken(self):
         if self.lastOutIP:

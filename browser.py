@@ -81,6 +81,7 @@ class Browser(Thread):
         # Credentials
         self.login = None
         self.password = None
+        self.loggedIn = False
 
         # Variables for browser-status
         self.status = "INIT"
@@ -175,10 +176,10 @@ class Browser(Thread):
         return req
 
     def setCredentials(self, login=None, password=None):
-        if login:
+        if login and login != '':
             rmlog(u'Browser::setCredentials()', u'setting login.')
             self.login = login
-        if password:
+        if password and password != '':
             rmlog(u'Browser::setCredentials()', u'setting password.')
             self.passwd = password
 
@@ -400,8 +401,8 @@ class Browser(Thread):
     ################# METHODS TO OVERRIDE IF FUNCTIONALITY IS NEEDED
     # This should be adapted for each specific website
     # The default method just looks for a 'Logout' link
-    def loggedIn(self):
-        rmlog(u'Browser::loggedIn()', u'You should override this function if you need it', 'error')
+    def isLoggedIn(self):
+        rmlog(u'Browser::isLoggedIn()', u'You should override this function if you need it', 'error')
         return False
 
     def doLogin(self):

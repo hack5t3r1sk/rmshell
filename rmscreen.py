@@ -331,7 +331,7 @@ class ChallWidget():
         # Display decriptions
         self.winDesc.addstr(1, 2, truncLine('%s' % self.catDesc, self.widthChall * 2 - 3 ), curses.color_pair(4))
         curY, curX = self.winDesc.getyx()
-        if curY + 2 >= self.maxlines:
+        if curY + 2 <= self.maxlines:
             self.winDesc.addstr(curY + 2, 2, truncLine('%s' % self.challDesc, self.widthChall * 2 - 3 ), curses.color_pair(6))
 
         # Add borders and titles
@@ -401,9 +401,12 @@ def startChallenge(selectedChallenge, browser, forceLocalShell=False):
     # backup Queue
     bkpQueue = glob.loginQueue
     glob.loginQueue = False
+    selectedChallenge.browser = browser
+
     with suspend_curses():
         # Clear the screen
         os.system('clear')
+        print "Getting challenge..."
         # Get the challenge
         try:
             selectedChallenge.getChallenge()
@@ -412,38 +415,48 @@ def startChallenge(selectedChallenge, browser, forceLocalShell=False):
             traceback.print_exc()
             challError = True
         else:
+            if glob.cfg['rmuser'] == "" or glob.cfg['rmuser'] == "":
+                print
+                print
+                print "    !!!! YOU HAVE TO SET YOUR rmuser and rmpassword IN rmlogin.conf TO ACCESS THE CHALLENGE !!! "
+                print
+                print
+
             selectedChallenge.browser = browser
             # Store current working dir and cd into challDir
             currentCwd = os.getcwd()
-            os.chdir(selectedChallenge.path)
-            # Display the challenge's summary
-            selectedChallenge.printStatement()
+            if os.path.exists(selectedChallenge.path):
+                os.chdir(selectedChallenge.path)
+                # Display the challenge's summary
+                selectedChallenge.printStatement()
 
-            # Restore Queue
-            glob.loginQueue = bkpQueue
-            if selectedChallenge.ssh and not forceLocalShell:
-                # Get cmdString and password
-                (sshCmd, password) = selectedChallenge.getSshCmdPass()
-                if sshCmd:
-                    # Start the challenge's SSH
-                    print "Starting [%s]..." % sshCmd
-                    # DEBUG
-                    #print selectedChallenge.sshCmd
-                    ret = subprocess.call(sshCmd, shell=True)
-                    if ret >0:
+                # Restore Queue
+                glob.loginQueue = bkpQueue
+                if selectedChallenge.ssh and not forceLocalShell:
+                    # Get cmdString and password
+                    (sshCmd, password) = selectedChallenge.getSshCmdPass()
+                    if sshCmd:
+                        # Start the challenge's SSH
+                        print "Starting [%s]..." % sshCmd
+                        # DEBUG
+                        #print selectedChallenge.sshCmd
+                        ret = subprocess.call(sshCmd, shell=True)
+                        if ret >0:
+                            challError = True
+                    else:
                         challError = True
+                        print
+                        print "ERROR: Invalid SSH command [%s], aborting !" % sshCmd
+                        print
                 else:
-                    challError = True
-                    print
-                    print "ERROR: Invalid SSH command [%s], aborting !" % sshCmd
-                    print
+                    print "The challenge doesn't have an SSH link, starting local shell instead..."
+                    # Start a simple local shell
+                    subprocess.call(['/bin/bash'])
+                # Restore previous working dir
+                os.chdir(currentCwd)
             else:
-                print "The challenge doesn't have an SSH link, starting local shell instead..."
-                # Start a simple local shell
-                subprocess.call(['/bin/bash'])
-            # Restore previous working dir
-            os.chdir(currentCwd)
-
+                print "The challenge's path does not exist, are you logged in ?"
+                challError = True
         if not glob.loginQueue:
             # Restore Queue
             glob.loginQueue = bkpQueue
@@ -513,13 +526,15 @@ def main(winMain):
 
         # Store the queued output to thread log
         login_thread.updateLog()
+        loginStatus = ( login_thread.browser.loggedIn ) and 'LOGGED IN' or 'NOT LOGGED IN'
 
         # clear the main window
         winMain.clear()
 
         # Set title
         winMain.border(1)
-        winMain.addstr(0,5,'| ROOT THE CASBA |', curses.color_pair(3))
+        winMain.addstr(0,5,'| RM-Shell v%s: ROOT THE CASBA ! (%s)|' % (
+                    glob.rmVersion, loginStatus), curses.color_pair(3))
         winMain.addstr(2,5, "  Usage: 0-3 =>debug (%s) | c => challenges | l =>login-log | s =>shell | u =>update_chal-DB (%s) | q =>quit " % (int(getDebugLevel()), glob.UPDATE), curses.color_pair(8))
         winMain.noutrefresh()
 
@@ -577,8 +592,9 @@ def main(winMain):
         elif k == curses.KEY_UP:
             winChall.moveChallUp()
         elif k == ord('\n'):
-            selectedChallenge = login_thread.browser.categories.get()[catListPos - 1].challenges[challListPos - 1]
-            startChallenge(selectedChallenge, login_thread.browser)
+            if login_thread.browser.categories and len(login_thread.browser.categories) >0:
+                selectedChallenge = login_thread.browser.categories.get()[catListPos - 1].challenges[challListPos - 1]
+                startChallenge(selectedChallenge, login_thread.browser)
         else:
             pass
 

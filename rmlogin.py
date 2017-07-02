@@ -74,9 +74,9 @@ def start(browser):
                 updateCategories(browser)
         else:
             if not glob.GETCHALL:
-                rmlog(u'rmlogin::start()',u'glob.UPDATE is [%s], doing IP check...' % glob.UPDATE, 'debug3')
+                rmlog(u'rmlogin::start()',u'glob.UPDATE is [%s], doing IP check...' % glob.UPDATE, 'debug')
                 try:
-                    ipCheck(browser)
+                    browser.ipCheck()
                 except Exception as e:
                     rmlog(u'rmlogin::start()',u'Exception while doing ipCheck() [%s]' % e, 'debug3')
                     pass
@@ -84,18 +84,23 @@ def start(browser):
         # This checks if UPDATE or GETCHALL
         # and breaks out right away if True
         if not glob.UPDATE and not glob.GETCHALL:
-            if browser.lastOutIP and browser.crsfToken:
-                rmlog(u'rmlogin::start()',u'Sleeping %ss...' % glob.cfg['checkIpInterval'], 'debug3')
+            if browser.lastOutIP and browser.crsfToken and browser.loggedIn:
+                rmlog(u'rmlogin::start()',u'Sleeping %ss...' % glob.cfg['checkIpInterval'], 'debug')
                 for oneSec in range(1, int(glob.cfg['checkIpInterval'])):
                     if not glob.UPDATE and not glob.GETCHALL:
                         time.sleep(1)
-            elif browser.lastOutIP and not browser.crsfToken:
-                # We are online, but not logged in
-                rmlog(u'rmlogin::start()',u'Sleeping 3s...', 'debug3')
-                time.sleep(3)
+            elif browser.lastOutIP and not (browser.crsfToken and browser.loggedIn):
+                # We are online, but are we logged in ?
+                browser.isLoggedIn()
+                # Sleep half of interval
+                secs = int(int(glob.cfg['checkIpInterval']) / 2)
+                rmlog(u'rmlogin::start()',u'Sleeping %ss...' % secs, 'debug3')
+                for oneSec in range(1, secs):
+                    if not glob.UPDATE and not glob.GETCHALL:
+                        time.sleep(1)
             else:
-                rmlog(u'rmlogin::start()',u'Sleeping 1s...', 'debug3')
-                time.sleep(1)
+                rmlog(u'rmlogin::start()',u'Sleeping 5s...', 'debug3')
+                time.sleep(5)
         else:
             # We are OFFLINE, 1sec is more than enough
             rmlog(u'rmlogin::start()',u'Update-Mode detected, skipping IPCheckInterval...', 'debug3')

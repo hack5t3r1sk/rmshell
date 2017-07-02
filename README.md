@@ -60,6 +60,21 @@ challenger@computer:/rmshell $ stty sane
 
 
 ## Changelog
+### v0.5
+* UI (rmscreen) :
+  - added login status in the title
+  - improved not-logged-in user experience
+  - fixed some bugs when not logged-in
+  - improved logging when not logged-in
+
+* rmlogin / rmhelpers / RMBrowser / RMChallenge
+  - moved ipCheck() method from helpers to RMBrowser
+  - improved loggin-status management
+    - loggedIn is now a property
+    - isLoggedIn() replaces the old loggedIn() method
+    - most of the time, we only check browser.loggedIn, browser.isLoggedIn() is only performed once in the loop
+    - disable challenge's dir-struct creation and saving if not logged in
+
 ### v0.4
 * UI (rmscreen) : added Challenge interaction
   - added 'Enter' command that opens the selected challenge. For now, 'Enter'

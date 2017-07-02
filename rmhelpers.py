@@ -30,26 +30,6 @@ def signal_handler(signalId, frame):
 def getaddrinfo(*args):
     return [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (args[0], args[1]))]
 
-def ipCheck(browser):
-    currentIP =  browser.getOutIP()
-    if currentIP and currentIP != '' and browser.lastOutIP != currentIP:
-        rmlog(u'rmhelpers::ipCheck()', u'IP has changed: setting new => [%s]' % currentIP)
-        browser.lastOutIP = currentIP
-        # Not necessary on root-me.org
-        #browser.doLogout()
-        if currentIP:
-            rmlog(u'rmhelpers::ipCheck()', u'IP has changed: forcing new login')
-            browser.doLogin()
-        else:
-            browser.lastOutIP = currentIP
-            rmlog(u'rmhelpers::ipCheck()', u'IP is %s, not doing anything !' % browser.lastOutIP, 'warning' )
-    else:
-        if browser.lastOutIP:
-            rmlog(u'rmhelpers::ipCheck()', u'IP is still the same => [%s], checking if we are logged in...' % browser.lastOutIP, 'debug2')
-            if not browser.loggedIn():
-                rmlog(u'rmhelpers::ipCheck()', u'We are not logged in: forcing new login')
-                browser.doLogin()
-
 def getChallengePath(uri):
     if uri:
         uriSplit = uri.split('/')
