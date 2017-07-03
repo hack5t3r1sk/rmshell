@@ -75,6 +75,9 @@ class RMBrowser(browser.Browser):
             # POST the form
             self.lastLoginPost = self.postURL(self.loginURL, loginParams, referrer, extradata)
 
+            # Check that the login succeeded
+            self.isLoggedIn()
+
             # DEBUG
             # print "RMBrowser::doLogin(): got HTML:"
             # print self.lastLoginPost

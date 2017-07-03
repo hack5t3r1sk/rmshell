@@ -138,8 +138,10 @@ class suspend_curses():
         newscr.refresh()
         curses.doupdate()
 
-
-
+BREAK = False
+def ctrlC(signalId, frame):
+    global BREAK
+    BREAK = True
 
 ################################### WIDGETS
 class LoginWidget():
@@ -397,11 +399,15 @@ class  loginThread():
         return self.log
 
 def startChallenge(selectedChallenge, browser, forceLocalShell=False):
+    global BREAK
     challError = False
     # backup Queue
     bkpQueue = glob.loginQueue
     glob.loginQueue = False
     selectedChallenge.browser = browser
+
+    # Intercept CTRL+C so that it doesn't kill us
+    signal.signal(signal.SIGINT, ctrlC)
 
     with suspend_curses():
         # Clear the screen
@@ -467,7 +473,17 @@ def startChallenge(selectedChallenge, browser, forceLocalShell=False):
             print
             print "ERROR: Waiting %ss, to let you know about the error. Press CTRL+C to keep reading..." % secs
             # DEBUG
-            time.sleep(secs)
+            for sec in range(1, secs):
+                if BREAK:
+                    BREAK = False
+                    break
+                else:
+                    time.sleep(1)
+        if BREAK:
+            BREAK = False
+        # Restore signal handler
+        signal.signal(signal.SIGINT, signal_handler)
+
 
 def main(winMain):
     doQuit = False
@@ -508,6 +524,11 @@ def main(winMain):
     curses.init_pair(7, curses.COLOR_BLACK, curses.COLOR_GREEN)
     # HELP / USAGE
     curses.init_pair(8, curses.COLOR_BLACK, curses.COLOR_YELLOW)
+    # LOGGED-IN / NOT LOGGED-IN
+    curses.init_pair(9, curses.COLOR_WHITE, curses.COLOR_GREEN)
+    curses.init_pair(10, curses.COLOR_WHITE, curses.COLOR_RED)
+
+    # Alert user that we are loading
     winMain.addstr(0,2," Loading, please wait... ", curses.color_pair(3))
     winMain.addstr(1,0,"")
     winMain.refresh()
@@ -527,14 +548,16 @@ def main(winMain):
         # Store the queued output to thread log
         login_thread.updateLog()
         loginStatus = ( login_thread.browser.loggedIn ) and 'LOGGED IN' or 'NOT LOGGED IN'
+        statusColor = ( login_thread.browser.loggedIn ) and 9 or 10
 
         # clear the main window
         winMain.clear()
 
         # Set title
         winMain.border(1)
-        winMain.addstr(0,5,'| RM-Shell v%s: ROOT THE CASBA ! (%s)|' % (
-                    glob.rmVersion, loginStatus), curses.color_pair(3))
+        winMain.addstr(0,5,'| RM-Shell v%s: ROOT THE CASBA ! ' % glob.rmVersion, curses.color_pair(3))
+        winMain.addstr(' (%s) ' % loginStatus, curses.color_pair(statusColor))
+        winMain.addstr(' |', curses.color_pair(3))
         winMain.addstr(2,5, "  Usage: 0-3 =>debug (%s) | c => challenges | l =>login-log | s =>shell | u =>update_chal-DB (%s) | q =>quit " % (int(getDebugLevel()), glob.UPDATE), curses.color_pair(8))
         winMain.noutrefresh()
 
