@@ -140,9 +140,9 @@ class RMChallenge:
                         if self.save():
                             # Download the files
                             for link in self.dlLinks:
-                                filename = link.split('/')[-1]
-                                rmlog(u'RMChallenge::getChallenge()', u'downloading [%s] to [%s]' % (link, filename))
-                                self.browser.download(link, filename)
+                                filePath = '%s/%s' % (self.path, link.split('/')[-1])
+                                rmlog(u'RMChallenge::getChallenge()', u'downloading [%s] to [%s]' % (link, filePath))
+                                self.browser.download(link, filePath)
                 else:
                     rmlog(u'RMChallenge::getChallenge()', u'self.BS is [%s]' % self.BS, 'warning')
             else:
@@ -184,7 +184,8 @@ class RMChallenge:
             dlLinks = self.summaryBS('p', {'class': 'download'})
             for uri in dlLinks:
                 link = '%s/%s' % (self.browser.baseURL, uri.find('a').attrs['href'])
-                self.dlLinks.append(link)
+                if not link in self.dlLinks:
+                    self.dlLinks.append(link)
 
             # Grab the SSH infos
             sshLinkTag = self.summaryBS.find('a', {'href': re.compile('ssh://.*\.root-me\.org')})
