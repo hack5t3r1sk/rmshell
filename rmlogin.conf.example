@@ -9,7 +9,7 @@ checkIpInterval: 20
 proxyHost: "localhost"
 proxyPort: 9050
 # User-Agent - please don't change this, it is our only advertisment :=]
-rmUserAgent: "RMShell-v0.4 (github.com/hack5t3r1sk/rmshell)"
+rmUserAgent: "RMShell-v0.5 (github.com/hack5t3r1sk/rmshell)"
 rmLogFile: "rmlogin.log"
 
 ### Challenges tree organisation
