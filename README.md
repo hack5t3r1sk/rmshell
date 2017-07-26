@@ -9,7 +9,7 @@ It helps you in several ways:
   - It downloads the source-code
   - It downloads all the ressources associated with this challenge
 * Connectivity / stability
-  - It connects automatically on the website,
+  - It logs you automatically into the website,
     thus white-listing your current IP for SSH challenges
   - If your IP has changed, it reconnects :=]
   - It supports SOCKS if you prefer to hide from prying eyes (SSH / Tor / etc...)
