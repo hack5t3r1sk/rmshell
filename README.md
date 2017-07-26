@@ -1,7 +1,7 @@
 # rmshell
 
 ## About me
-*rmshell* is a tool to help you resolve [root-me.org](https://www.root-me.org/) challenges over a SOCKS proxy.
+*rmshell* is a tool to help you resolve [root-me.org](https://www.root-me.org/) challenges withou any browser.
 
 It helps you in several ways:
 * Organization
@@ -12,16 +12,14 @@ It helps you in several ways:
   - It connects automatically on the website,
     thus white-listing your current IP for SSH challenges
   - If your IP has changed, it reconnects :=]
-  - It supports SOCKS proxy if you prefer to hide from prying eyes (SSH / Tor / etc...)
+  - It supports SOCKS if you prefer to hide from prying eyes (SSH / Tor / etc...)
   - It makes it easy to work on a challenge when offline
 * Performance
   - It has a much lighter performance impact than IE/FF/Chromium
   - It spares you a lot of (now) useless clicks, just navigate around
     and press Enter to SSH into a challenge
   - It is slow-/heavy-loaded-computers-friendly
-It's main purpose is to check whether the public IP has changed.
-If yes it will perform a new login on root-me.org through the proxy,
-allowing the current public IP to SSH into the challenge.
+
 
 ## Howto
 
