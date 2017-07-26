@@ -1,19 +1,19 @@
-# rmshell
+# RM-Shell - v0.6
 
 ## About me
-*rmshell* is a tool to help you resolve [root-me.org](https://www.root-me.org/) challenges withou any browser.
+*RM-Shell* is a tool to help you resolve [root-me.org](https://www.root-me.org/) challenges without any browser.
 
 It helps you in several ways:
 * Organization
   - It creates a directory for each challenge you start
   - It downloads the source-code
-  - It downloads all the ressources associated this challenge
+  - It downloads all the ressources associated with this challenge
 * Connectivity / stability
   - It connects automatically on the website,
     thus white-listing your current IP for SSH challenges
   - If your IP has changed, it reconnects :=]
   - It supports SOCKS if you prefer to hide from prying eyes (SSH / Tor / etc...)
-  - It makes it easy to work on a challenge when offline
+  - It makes it easy to work on a challenge if you're offline
 * Performance
   - It has a much lighter performance impact than IE/FF/Chromium
   - It spares you a lot of (now) useless clicks, just navigate around
@@ -37,10 +37,9 @@ If there is any error at startup, make sure you have the following python packag
 ```bash
 challenger@computer:/ $ git clone https://github.com/hack5t3r1sk/rmshell.git
 challenger@computer:/ $ cd rmshell
-challenger@computer:/rmshell $ cp rmlogin.conf.example rmlogin.conf
 ```
-... then edit rmlogin.conf with your credentials and proxy-settings.
-You can avoid the proxy completely by setting
+Edit rmlogin.conf with your credentials (and optionally your proxy-settings).
+You can avoid the proxy completely by setting:
 ```
 proxyHost: ""
 ```
