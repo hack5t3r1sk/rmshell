@@ -67,15 +67,15 @@ challenger@computer:/rmshell $ stty sane
   - fixed some width-/height-bugs
   - improved challenge interactive mode
 
-* rmlogin / rmhelpers /  / RMChallenge
-  - improved challenge parsing, added 'ressources' links
-  - RMChallenge::getChallenge() now also downloads the docs
-  - now checking if we are logged-in with the user's score page
+* rmlogin / rmhelpers / RMChallenge
   - now keeping track of valid challenges and user's score
   - improved logging, fixed some bugs with unicode conversion on some strings
   - added a way to update challenges stored within the state
+  - RMChallenge: improved challenge parsing, added 'ressources' links
+  - RMChallenge::getChallenge() now also downloads the docs
 
 * Browser / RMBrowser
+  - now checking if we are logged-in with the user's score page
   - added secure name-resolver in Browser for resolving (over a website)
     the challenge's SSH hostname when using the proxy
   - improved path-management, all paths are now resolved absolutely at runtime
