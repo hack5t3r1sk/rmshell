@@ -48,18 +48,22 @@ def getSshDict(ssHref):
         return None
 
 def rmWriteOut(msg):
+    logFilePath = '%s/%s' % (glob.initCwd, glob.cfg['rmLogFile'])
     if glob.loginQueue:
         glob.loginQueue.put(msg)
     else:
         sys.stdout.write(msg)
         sys.stdout.flush()
     if glob.cfg['rmLogFile'] != "":
-        with open(glob.cfg['rmLogFile'], 'a') as logFile:
+        with open(logFilePath, 'a') as logFile:
             logFile.write(msg)
 
 def rmlog(funcName, msg, level="info"):
     tstamp = getNow('sql')
-    umsg = msg.encode('utf-8')
+    try:
+        umsg = msg.encode('utf-8')
+    except:
+        umsg = msg
     if level == 'info':
         rmWriteOut("%s::[INFO]:%s: %s\n" % (tstamp, funcName, umsg))
     elif level == 'warning':
@@ -88,6 +92,10 @@ def rmDiff(i):
         return diffList[i]
     else:
         return "= n-a ="
+
+def updating():
+    return glob.UPDATE or glob.UPDATECAT or glob.GETCHALL
+
 
 def getNow(format="epoch"):
     now = dt.datetime.now()

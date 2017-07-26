@@ -5,7 +5,7 @@ import glob
 from rmhelpers import *
 import browser
 from rmcategories import RMCategories
-import cPickle, os
+import cPickle, os, traceback
 
 # The virtual browser
 class RMBrowser(browser.Browser):
@@ -31,6 +31,12 @@ class RMBrowser(browser.Browser):
         self.status = "IDLE"
         self.ready = True
 
+        # Used for individual updates
+        self.selectedCategory = None
+
+        # User specific
+        self.score = 0
+
     def ipCheck(self):
         currentIP = self.getOutIP()
         if currentIP and currentIP != '' and self.lastOutIP != currentIP:
@@ -47,7 +53,7 @@ class RMBrowser(browser.Browser):
             if self.lastOutIP:
                 if self.login and self.passwd:
                     rmlog(u'RMBrowser::ipCheck()', u'IP is still the same => [%s], checking if we are logged in...' % self.lastOutIP, 'debug2')
-                    if not self.loggedIn:
+                    if not self.isLoggedIn():
                         rmlog(u'RMBrowser::ipCheck()', u'We are not logged in: forcing new login')
                         self.doLogin()
                 else:
@@ -95,13 +101,46 @@ class RMBrowser(browser.Browser):
             return self.lastLogoutPost
 
     def isLoggedIn(self):
+        # Check with the score page and
+        # update self.validChallenges
+        # at the same time
+        checkValidChalls = False
         if self.lastOutIP:
-            self.getHome()
+            if self.login and self.login != "":
+                checkValidChalls = True
+                checkURL = "%s/%s?inc=score&lang=en" % (self.baseURL, self.login)
+            else:
+                checkURL = self.baseURL
+            self.BS = self.getBeautifulSoup(self.getURL(checkURL))
             if self.BS:
                 foundAccount = self.BS.find("a",{'href': "./?page=preferences&lang=en" })
                 if foundAccount:
-                    rmlog(u'RMBrowser::isLoggedIn()', u'LOGGED IN.', 'debug')
+                    rmlog(u'RMBrowser::isLoggedIn()', u'LOGGED IN, updating scores...', 'debug')
                     self.loggedIn = True
+                    # Update the scores
+                    catsUpdated = False
+
+                    # Get user's score
+                    children = [child.encode('utf8').strip().replace('\xc2\xa0', ' ') for child in self.BS.find('h1', {'itemprop': 'givenName'}).parent.find('div').find('div').find('ul').find('li').find('span').children]
+                    score = int(children[0].split(' ')[0])
+                    rmlog(u'RMBrowser::isLoggedIn()', u'LOGGED IN, your current score is [%s]' % score, 'debug')
+                    self.score = score
+
+                    # Build a list of valid challenges
+                    self.validChalls = [link.attrs['href'] for link in self.BS('a', {'class': 'vert'})]
+                    rmlog(u'RMBrowser::isLoggedIn()', u'found %s valid challenges.' % len(self.validChalls), 'debug')
+
+                    # Iterate through all cat->challs and update if different
+                    for cat in self.categories.categories:
+                        for chall in cat.challenges:
+                            if chall.href in self.validChalls:
+                                if not chall.valid:
+                                    catsUpdated = True
+                                    rmlog(u'RMBrowser::isLoggedIn()', "You validated a new challenge: %s" % chall)
+                                    chall.valid = True
+                                    chall.save()
+                    if catsUpdated:
+                        self.categories.save()
                 else:
                     rmlog(u'RMBrowser::isLoggedIn()', u'NOT LOGGED IN.', 'debug')
                     self.loggedIn = False
@@ -129,6 +168,8 @@ class RMBrowser(browser.Browser):
         if not self.loadCategories():
             rmlog(u'RMBrowser::getCategories()',u'No Database found, starting update !')
             glob.UPDATE = True
+        else:
+            return self.categories
 
     def updateCategories(self):
             if self.lastOutIP:
@@ -139,21 +180,28 @@ class RMBrowser(browser.Browser):
             else:
                 rmlog(u'RMBrowser::updateCategories()', u'Cannot update, check your connection and your proxy settings !', 'error')
 
+    def getStorePath(self):
+        return '%s/%s/%s/%s' % (glob.initCwd,
+                                glob.cfg['challBaseDir'],
+                                glob.cfg['challHiddenDir'],
+                                glob.cfg['stateStore'])
     def loadCategories(self):
-        storePath = '%s/%s/%s' % (glob.cfg['challBaseDir'],
-                                  glob.cfg['challHiddenDir'],
-                                  glob.cfg['challengesStore'])
-        if os.path.exists(storePath):
+        if os.path.exists(self.getStorePath()):
             rmlog("RMBrowser::getCategories()", "Found saved state, loading...")
             print "    => Found saved state, loading..."
+
             # Unserialize the object
-            with open(storePath, 'rb') as stateObj:
+            with open(self.getStorePath(), 'rb') as stateObj:
                 state = cPickle.load(stateObj)
 
             # Check DB version
             if state and 'version' in state:
                 if float(state['version']) == float(glob.rmVersion):
-                    self.categories = state['categories']
+                    if 'categories' in state:
+                        self.categories = RMCategories(browser=self, fileDict=state['categories'])
+                        self.categories.browser = self
+                    if 'lastOutIP' in state:
+                        self.lastOutIP = state['lastOutIP']
                     return True
                 else:
                     if float(state['version']) < float(glob.rmVersion):
@@ -164,3 +212,61 @@ class RMBrowser(browser.Browser):
                 rmlog(u'RMBrowser::getCategories()',u'The Database seems corrupt, you should set UPDATE = True or press "u" if you\'re in the UI.', 'warning')
         else:
             return False
+
+    def saveState(self):
+        # Create base dir-structure if it's not there
+        absBasePath = '%s/%s' % (glob.initCwd, glob.cfg['challBaseDir'])
+        if not os.path.exists(absBasePath):
+            rmlog(u'RMBrowser::saveState()',u'Creating challenge\'s dir-struct [%s]...' % absBasePath)
+            try:
+                os.mkdir(absBasePath)
+            except Exception as e:
+                rmlog(u'RMBrowser::saveState()',u'Exception while creating [%s]: %s' % (absBasePath, e), 'error')
+                return False
+        # The hidden dir for the categories
+        absHiddenPath = '%s/%s' % (absBasePath, glob.cfg['challHiddenDir'])
+        if not os.path.exists(absHiddenPath):
+            rmlog(u'RMBrowser::saveState()',u'Creating base hidden-dir [%s]...' % absHiddenPath)
+            try:
+                os.mkdir(absHiddenPath)
+            except Exception as e:
+                rmlog(u'RMBrowser::saveState()',u'Exception while creating [%s]: %s' % (absHiddenPath, e), 'error')
+                return False
+
+        if os.path.exists(absHiddenPath):
+            # unset browser and BS for serializing,
+            self.categories.browser = None
+            self.categories.BS = None
+            # Unset BS & browser in every category / challenge
+            for cat in self.categories.categories:
+                cat.browser = None
+                cat.BS = None
+                cat.challengesBS = None
+                for chall in cat.challenges:
+                    chall.browser = None
+                    chall.BS = None
+                    chall.statementBS = None
+                    chall.summaryBS = None
+                    chall.challFields = None
+
+            rmlog(u'RMBrowser::saveState()', u'Saving State to [%s]' % self.getStorePath())
+
+            # First try to save to a temp file
+            tmpFile = '%s.tmp.new' % self.getStorePath()
+            with open(tmpFile, 'wb') as catsFile:
+                try:
+                    state = {'version': glob.rmVersion,
+                             'lastOutIP': self.lastOutIP,
+                             'categories': self.categories.__dict__}
+                    cPickle.dump(state, catsFile, 2)
+                except Exception as e:
+                    rmlog(u'RMBrowser::saveState()', u'Exception while saving State to [%s]: %s' % (self.getStorePath(), e), 'error')
+                    rmlog('%s' % traceback.print_exc(), 'debug3')
+                    success = False
+                else:
+                    success = True
+            if success:
+                if os.path.exists(self.getStorePath()):
+                    os.remove(self.getStorePath())
+                os.rename(tmpFile, self.getStorePath())
+            return success

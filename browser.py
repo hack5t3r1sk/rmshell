@@ -158,6 +158,9 @@ class Browser(Thread):
 
         # We now have a cookie-compatible urlopen function with our cookie loaded
 
+    def stop(self):
+        """Stops the current running browser-thread"""
+        self.running = False
 
     def buildReq(self, url=None, data=None, referer="", extradata=""):
         rmlog(u'Browser::buildReq()', u'URL: %s' % url, 'debug3')
@@ -367,10 +370,10 @@ class Browser(Thread):
                         break
                     f.write(chunk)
         except Exception as e:
-            rmlog(u'Browser::download()', u'Exception while downloading [%s] to [%s]: %s' % (srcUrl, dstPath, e), 'error')
+            rmlog('Browser::download()', 'Exception while downloading [%s] to [%s]: %s' % (srcUrl, dstPath, e), 'error')
             return False
         else:
-            rmlog(u'Browser::download()', u'Successfully downloaded [%s] to [%s]' % (srcUrl, dstPath), 'debug')
+            rmlog('Browser::download()', 'Successfully downloaded [%s] to [%s]' % (srcUrl, dstPath), 'debug')
             return True
 
     def getBeautifulSoup(self, html):

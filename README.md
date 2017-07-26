@@ -60,6 +60,27 @@ challenger@computer:/rmshell $ stty sane
 
 
 ## Changelog
+### v0.6
+* UI (rmscreen) :
+  - added score in login status text when logged in
+  - valid challenges are now in green
+  - fixed some width-/height-bugs
+  - improved challenge interactive mode
+
+* rmlogin / rmhelpers /  / RMChallenge
+  - improved challenge parsing, added 'ressources' links
+  - RMChallenge::getChallenge() now also downloads the docs
+  - now checking if we are logged-in with the user's score page
+  - now keeping track of valid challenges and user's score
+  - improved logging, fixed some bugs with unicode conversion on some strings
+  - added a way to update challenges stored within the state
+
+* Browser / RMBrowser
+  - added secure name-resolver in Browser for resolving (over a website)
+    the challenge's SSH hostname when using the proxy
+  - improved path-management, all paths are now resolved absolutely at runtime
+  - improved state-management, still some work to do to speedup loading
+
 ### v0.5
 * UI (rmscreen) :
   - added login status in the title

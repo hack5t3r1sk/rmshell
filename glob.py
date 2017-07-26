@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 global rmVersion
-rmVersion = '0.5'
+rmVersion = '0.6'
 
 ################## LOG AND DEBUG
 # Log level
@@ -38,4 +38,10 @@ UPDATE = False
 
 global GETCHALL
 GETCHALL = False
+
+global UPDATECAT
+UPDATECAT = False
+
+global initCwd
+initCwd = ''
 ################## END: GLOBAL RUNTIME VARS

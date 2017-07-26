@@ -150,7 +150,7 @@ class LoginWidget():
         self.height = int(height / 3) - 2
         self.width = width - 3
         self.beginX = 1
-        self.beginY = 4
+        self.beginY = 2
         # Create new sub-window
         self.win = curses.newwin(self.height, self.width, self.beginY, self.beginX)
 
@@ -188,13 +188,36 @@ class LoginWidget():
 class ChallWidget():
     def __init__(self, winParent, height, width):
         self.winParent = winParent
-        self.listHeight = int(height / 3) - 2
+        self.parentWidth = width
+        self.parentHeight = height
         self.descHeight = int(height / 3) - 1
         self.widthDesc = width - 3
         self.widthCat = int(width / 4) - 3
-        self.widthChall = int( width / 4) * 3 - 1
+        # Compute width-adjustment
+        if (width % 4) == 1:
+            self.adjustChallWidth = -1
+        elif (width % 4) == 2:
+            self.adjustChallWidth = 0
+        elif (width % 4) == 3:
+            self.adjustChallWidth = 1
+        else:
+            self.adjustChallWidth = -2
+        self.widthChall = int( width / 4) * 3 + self.adjustChallWidth
+
+        # Compute height-adjustment
+        if (height % 3) == 1:
+            self.adjustListHeight = 1
+        elif (height % 3) == 2:
+            self.adjustListHeight = 2
+        elif (height % 3) == 3:
+            self.adjustListHeight = 1
+        else:
+            self.adjustListHeight = 0
+        self.listHeight = int( height / 3) + self.adjustListHeight
+
+        # Now the start x-coordinates
         self.beginX = 1
-        self.beginY = int(height / 3) + 2
+        self.beginY = int(height / 3)
         self.beginChall = self.widthCat + 2 + self.beginX
 
         # Create new sub-windows
@@ -298,12 +321,14 @@ class ChallWidget():
                         challLineNr = 1
                         for challenge in browser.categories[catListPos - 1].challenges[startIdxChall:endIdxChall]:
                             challLine = truncLine('%s' % challenge, self.widthChall - 3 )
+                            challColor = ( challenge.valid ) and 8 or 6
+                            challColorInvert = ( challenge.valid ) and 9 or 7
                             try:
                                 if ((challLineNr + startIdxChall) == challListPos):
-                                    self.winChall.addstr(challLineNr , 2, challLine, curses.color_pair(7))
+                                    self.winChall.addstr(challLineNr , 2, challLine, curses.color_pair(challColorInvert))
                                     self.challDesc = "[ Challenge ] '%s'" % challenge.description
                                 else:
-                                    self.winChall.addstr(challLineNr , 2, challLine, curses.color_pair(6))
+                                    self.winChall.addstr(challLineNr , 2, challLine, curses.color_pair(challColor))
                             except:
                                 try:
                                     challLine = truncLine("ERR: max: %s | tt: %s | sta: %s | end: %s | nr: %s" % (
@@ -332,6 +357,18 @@ class ChallWidget():
 
         # Display decriptions
         self.winDesc.addstr(1, 2, truncLine('%s' % self.catDesc, self.widthChall * 2 - 3 ), curses.color_pair(4))
+        # DEBUG WIDTH
+        #self.winDesc.addstr('%s - %s - %s - %s' % (self.parentWidth,
+                                         #(self.parentWidth / 4),
+                                         #(self.parentWidth % 4),
+                                         #self.adjustChallWidth
+                                         #))
+        # DEBUG LIST HEIGHT
+        #self.winDesc.addstr('%s - %s - %s - %s' % (self.parentHeight,
+                                         #(self.parentHeight / 3),
+                                         #(self.parentHeight % 3),
+                                         #self.adjustListHeight
+                                         #))
         curY, curX = self.winDesc.getyx()
         if curY + 2 <= self.maxlines:
             self.winDesc.addstr(curY + 2, 2, truncLine('%s' % self.challDesc, self.widthChall * 2 - 3 ), curses.color_pair(6))
@@ -398,6 +435,12 @@ class  loginThread():
                 self.log.append(loginLine)
         return self.log
 
+    def stop(self):
+        self.running = False
+
+    def rmExit(self):
+        rmlogin.rmExit()
+
 def startChallenge(selectedChallenge, browser, forceLocalShell=False):
     global BREAK
     challError = False
@@ -424,15 +467,15 @@ def startChallenge(selectedChallenge, browser, forceLocalShell=False):
             if glob.cfg['rmuser'] == "" or glob.cfg['rmuser'] == "":
                 print
                 print
-                print "    !!!! YOU HAVE TO SET YOUR rmuser and rmpassword IN rmlogin.conf TO ACCESS THE CHALLENGE !!! "
+                print "    !!!! YOU HAVE TO SET YOUR rmuser AND rmpassword IN rmlogin.conf TO ACCESS THE CHALLENGE !!! "
                 print
                 print
 
             selectedChallenge.browser = browser
             # Store current working dir and cd into challDir
             currentCwd = os.getcwd()
-            if os.path.exists(selectedChallenge.path):
-                os.chdir(selectedChallenge.path)
+            if os.path.exists(selectedChallenge.getPath()):
+                os.chdir(selectedChallenge.getPath())
                 # Display the challenge's summary
                 selectedChallenge.printStatement()
 
@@ -486,6 +529,7 @@ def startChallenge(selectedChallenge, browser, forceLocalShell=False):
 
 
 def main(winMain):
+    glob.initCwd = os.getcwd()
     doQuit = False
     showChall = True
     showLogin = True
@@ -516,17 +560,27 @@ def main(winMain):
     curses.init_pair(2, curses.COLOR_YELLOW, curses.COLOR_BLACK)
     # ERRORS
     curses.init_pair(3, curses.COLOR_RED, curses.COLOR_WHITE)
-    # LIST BLUE
+    # CATEGORIES LIST BLUE
     curses.init_pair(4, curses.COLOR_CYAN, curses.COLOR_BLACK)
     curses.init_pair(5, curses.COLOR_BLACK, curses.COLOR_CYAN)
-    # LIST GREEN
-    curses.init_pair(6, curses.COLOR_GREEN, curses.COLOR_BLACK)
-    curses.init_pair(7, curses.COLOR_BLACK, curses.COLOR_GREEN)
+    ## CHALLENGES LIST
+    #curses.init_pair(6, curses.COLOR_GREEN, curses.COLOR_BLACK)
+    #curses.init_pair(7, curses.COLOR_BLACK, curses.COLOR_GREEN)
+    # CHALLENGES LIST (ORANGE=NOT DONE, GREEN=VALID, RED=WRONG FLAG)
+    curses.init_pair(6, curses.COLOR_YELLOW, curses.COLOR_BLACK)
+    curses.init_pair(7, curses.COLOR_BLACK, curses.COLOR_YELLOW)
+    curses.init_pair(8, curses.COLOR_GREEN, curses.COLOR_BLACK)
+    curses.init_pair(9, curses.COLOR_GREEN, curses.COLOR_YELLOW)
+    curses.init_pair(10, curses.COLOR_RED, curses.COLOR_BLACK)
+    curses.init_pair(11, curses.COLOR_RED, curses.COLOR_YELLOW)
     # HELP / USAGE
-    curses.init_pair(8, curses.COLOR_BLACK, curses.COLOR_YELLOW)
+    #curses.init_pair(8, curses.COLOR_BLACK, curses.COLOR_YELLOW)
+    curses.init_pair(12, curses.COLOR_BLACK, curses.COLOR_YELLOW)
     # LOGGED-IN / NOT LOGGED-IN
-    curses.init_pair(9, curses.COLOR_WHITE, curses.COLOR_GREEN)
-    curses.init_pair(10, curses.COLOR_WHITE, curses.COLOR_RED)
+    #curses.init_pair(9, curses.COLOR_WHITE, curses.COLOR_GREEN)
+    curses.init_pair(13, curses.COLOR_WHITE, curses.COLOR_GREEN)
+    #curses.init_pair(10, curses.COLOR_WHITE, curses.COLOR_RED)
+    curses.init_pair(14, curses.COLOR_WHITE, curses.COLOR_RED)
 
     # Alert user that we are loading
     winMain.addstr(0,2," Loading, please wait... ", curses.color_pair(3))
@@ -535,6 +589,10 @@ def main(winMain):
 
     # Start the auto-login Thread
     login_thread = loginThread()
+
+    # Register our custom exit handler
+    atexit.register(login_thread.rmExit)
+
     winMain.addstr(2,2,"LoginThread loaded !", curses.color_pair(3))
     winMain.refresh()
     # Set the border on
@@ -547,8 +605,10 @@ def main(winMain):
 
         # Store the queued output to thread log
         login_thread.updateLog()
-        loginStatus = ( login_thread.browser.loggedIn ) and 'LOGGED IN' or 'NOT LOGGED IN'
-        statusColor = ( login_thread.browser.loggedIn ) and 9 or 10
+        loginStatus = ( login_thread.browser.loggedIn ) \
+                           and 'LOGGED IN - %spts' % login_thread.browser.score \
+                           or 'NOT LOGGED IN'
+        statusColor = ( login_thread.browser.loggedIn ) and 13 or 14
 
         # clear the main window
         winMain.clear()
@@ -558,7 +618,7 @@ def main(winMain):
         winMain.addstr(0,5,'| RM-Shell v%s: ROOT THE CASBA ! ' % glob.rmVersion, curses.color_pair(3))
         winMain.addstr(' (%s) ' % loginStatus, curses.color_pair(statusColor))
         winMain.addstr(' |', curses.color_pair(3))
-        winMain.addstr(2,5, "  Usage: 0-3 =>debug (%s) | c => challenges | l =>login-log | s =>shell | u =>update_chal-DB (%s) | q =>quit " % (int(getDebugLevel()), glob.UPDATE), curses.color_pair(8))
+        winMain.addstr(1,1, " HELP: 0-3 =>debug (%s) | c => challenges | l =>login-log | s =>shell | u =>update_chal-DB (%s) | q =>quit " % (int(getDebugLevel()), glob.UPDATE), curses.color_pair(12))
         winMain.noutrefresh()
 
         if showLogin:
@@ -601,10 +661,15 @@ def main(winMain):
         elif k == ord('l'):
             showLogin = not not not showLogin
         elif k == ord('s'):
-        ### UPDATE CHALLENGES DATABASE
             showShell = not not not showShell
-        elif k == ord('u'):
+        ### UPDATE CHALLENGES DATABASE
+        elif k == ord('U'):
             glob.UPDATE = True
+        ### UPDATE SELECTED CATEGORY
+        elif k == ord('u'):
+            if login_thread.browser.categories and len(login_thread.browser.categories) >0:
+                login_thread.browser.selectedCategory = login_thread.browser.categories.get()[catListPos - 1]
+                glob.UPDATECAT = True
         ### NAVIGATION
         elif k == curses.KEY_RIGHT:
             winChall.moveCatDown()
@@ -623,7 +688,19 @@ def main(winMain):
 
         # Give the core some breath
         time.sleep(0.1)
-    # doQuit is True
+
+    ### doQuit is True, clean up
+    ## Save the state
+    #login_thread.browser.saveState()
+    #time.sleep(5)
+
+    ## Stop the browser thread
+    #login_thread.browser.stop()
+    #time.sleep(5)
+
+    #login_thread.stop()
+    #time.sleep(10)
+    # Terminate the window
     curses.endwin()
 # Main scope
 if __name__ == "__main__":

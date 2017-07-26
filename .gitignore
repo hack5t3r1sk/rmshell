@@ -12,6 +12,6 @@ orig.*
 bkp.*
 *.obj
 *.db
-!challenges/.rmshell/rmchallenges.db
+!challenges/.rmshell/RMState.db
 *.log
 *~

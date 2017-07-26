@@ -3,13 +3,22 @@
 
 import glob
 
-import os, cPickle, sys, time, traceback, yaml
+import atexit, os, cPickle, sys, time, traceback, yaml
 from rmhelpers import *
 from rmbrowser import RMBrowser
 
 def initBrowser(cfg):
+    global glob
+    global browser
+    # Absolute path for the cookieFile
+    cookieFilePath = '%s/%s/%s/rmCookie.lwp' % (glob.initCwd,
+                                                cfg['challBaseDir'],
+                                                cfg['challHiddenDir'])
     # Since there is a loginQueue global variable, pass it to the browser
-    browser = RMBrowser(queue=glob.loginQueue, userAgent=cfg['rmUserAgent'])
+    browser = RMBrowser(queue=glob.loginQueue,
+                        userAgent=cfg['rmUserAgent'],
+                        cookieFile=cookieFilePath)
+
     # Set browser's proxy to our config-proxy
     if cfg['proxyHost'] != "":
         browser.setProxy(cfg['proxyHost'], cfg['proxyPort'])
@@ -31,8 +40,7 @@ def readConf(cfgFile):
 def init():
     glob.cfg = readConf("rmlogin.conf")
     setDebugLevel(glob.cfg['debug'])
-    browser = initBrowser(glob.cfg)
-    return browser
+    return initBrowser(glob.cfg)
 
 def updateCategories(browser):
     try:
@@ -46,7 +54,7 @@ def updateCategories(browser):
         #pass
     else:
         if browser.categories:
-            browser.categories.save()
+            browser.saveState()
             rmlog(u'rmlogin::start()',u'UPDATE COMPLETED')
             glob.UPDATE = False
             return True
@@ -72,8 +80,19 @@ def start(browser):
             if browser.lastOutIP:
                 rmlog(u'rmlogin::start()',u'Update-Mode ON, getting categories...')
                 updateCategories(browser)
+        elif glob.UPDATECAT:
+            if not browser.lastOutIP:
+                browser.lastOutIP = browser.getOutIP()
+            if browser.lastOutIP:
+                rmlog(u'rmlogin::start()',u'Updating selected category...')
+                if browser.selectedCategory:
+                    browser.selectedCategory.browser = browser
+                    browser.selectedCategory.getChallenges()
+                    browser.selectedCategory.browser = None
+                    browser.saveState()
+                    glob.UPDATECAT = False
         else:
-            if not glob.GETCHALL:
+            if not updating():
                 rmlog(u'rmlogin::start()',u'glob.UPDATE is [%s], doing IP check...' % glob.UPDATE, 'debug')
                 try:
                     browser.ipCheck()
@@ -83,11 +102,13 @@ def start(browser):
         # Waiting according to conditions
         # This checks if UPDATE or GETCHALL
         # and breaks out right away if True
-        if not glob.UPDATE and not glob.GETCHALL:
+        if not updating():
             if browser.lastOutIP and browser.crsfToken and browser.loggedIn:
+                # Are we still logged in ?
+                browser.isLoggedIn()
                 rmlog(u'rmlogin::start()',u'Sleeping %ss...' % glob.cfg['checkIpInterval'], 'debug')
                 for oneSec in range(1, int(glob.cfg['checkIpInterval'])):
-                    if not glob.UPDATE and not glob.GETCHALL:
+                    if not updating():
                         time.sleep(1)
             elif browser.lastOutIP and not (browser.crsfToken and browser.loggedIn):
                 # We are online, but are we logged in ?
@@ -96,7 +117,7 @@ def start(browser):
                 secs = int(int(glob.cfg['checkIpInterval']) / 2)
                 rmlog(u'rmlogin::start()',u'Sleeping %ss...' % secs, 'debug3')
                 for oneSec in range(1, secs):
-                    if not glob.UPDATE and not glob.GETCHALL:
+                    if not updating():
                         time.sleep(1)
             else:
                 rmlog(u'rmlogin::start()',u'Sleeping 5s...', 'debug3')
@@ -104,14 +125,31 @@ def start(browser):
         else:
             # We are OFFLINE, 1sec is more than enough
             rmlog(u'rmlogin::start()',u'Update-Mode detected, skipping IPCheckInterval...', 'debug3')
-
+            time.sleep(5)
 
 def initStart():
+    global browser
+    glob.initCwd = os.getcwd()
     browser = init()
     start(browser)
 
+def rmExit():
+    global browser
+    # Save state before exiting
+    rmlog(u'rmlogin::rmExit()',u'Exit handler called, saving state...', 'debug')
+    browser.saveState()
+
+    # Call the standard exit handler
+    exit_handler
+
+
 if __name__ == '__main__':
+    browser = None
     glob.loginQueue = None
+
+    # Register our custom exit handler
+    atexit.register(rmExit)
+
     initStart()
 
 

@@ -65,7 +65,6 @@ class RMCategory:
 
                         # We grabbed everything we could, get challenges list
                         self.getChallenges()
-                        self.challengesList = [chall.title for chall in self.challenges]
 
         # unset browser and BS for serializing,
         # browser is a thread and BS is heavy
@@ -87,6 +86,7 @@ class RMCategory:
         challURL = '%s/%s' % (self.browser.baseURL, self.href)
         rmlog(u'RMCategory::getChallenges()', u'getting URL [%s]' % challURL, 'debug3')
         if self.getPage(challURL):
+            self.challenges = []
             # Store AJAX-ENV for pagination requests
             self.ajaxEnv = self.challengesBS.findAll('div', {'class': 'ajaxbloc'})[2].attrs['data-ajax-env']
 
@@ -115,6 +115,7 @@ class RMCategory:
 
 
             rmlog(u'RMCategory::getChallenges()', u'added %s challenges' % len(self.challenges), 'debug')
+            self.challengesList = [chall.title for chall in self.challenges]
             return self.challenges
         return False
 

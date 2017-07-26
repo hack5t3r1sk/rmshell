@@ -5,10 +5,10 @@ import glob
 from rmhelpers import *
 from rmcategory import RMCategory
 
-import cPickle, os
+import cPickle, os, traceback
 
 class RMCategories:
-    def __init__(self, browser, categoriesURL):
+    def __init__(self, browser=None, categoriesURL=None, fileDict=None):
         self.browser = browser
         self.BS = None
         self.categories = []
@@ -16,16 +16,21 @@ class RMCategories:
         self.href = categoriesURL
         self.storePath = '%s/%s/%s' % (glob.cfg['challBaseDir'],
                                        glob.cfg['challHiddenDir'],
-                                       glob.cfg['challengesStore'])
+                                       glob.cfg['stateStore'])
+        if not fileDict:
+            self.parsePage()
+        else:
+            self.__dict__.update(fileDict)
 
-        # DEBUG: counter used for limiting
-        # the number of categories to get
-        breaker = 0
-
+    def parsePage(self):
         # Get the HTML
         rmlog(u'RMCategories::init()', u'getting categories.', 'debug3')
 
         self.BS = self.browser.getBeautifulSoup(self.browser.getURL(self.href, clean=False))
+
+        # DEBUG: counter used for limiting
+        # the number of categories to get
+        breaker = 0
 
         if self.BS and len(self.BS) >0:
             # Parse the soup for DIVs with class="tile"
@@ -61,68 +66,64 @@ class RMCategories:
 
     def save(self):
         # Create base dir-structure if it's not there
-        baseDir = glob.cfg['challBaseDir']
-        if not os.path.exists(baseDir):
-            rmlog(u'RMCategories::save()',u'Creating base directory [%s]...' % baseDir)
+        absBasePath = '%s/%s' % (glob.initCwd, glob.cfg['challBaseDir'])
+        if not os.path.exists(absBasePath):
+            rmlog(u'RMCategories::save()',u'Creating challenge\'s dir-struct [%s]...' % absBasePath)
             try:
-                os.mkdir(baseDir)
+                os.mkdir(absBasePath)
             except Exception as e:
-                rmlog(u'RMCategories::save()',u'Exception while creating base directory [%s]: %s' % (baseDir, e), 'error')
+                rmlog(u'RMCategories::save()',u'Exception while creating [%s]: %s' % (absBasePath, e), 'error')
+                return False
+        # The hidden dir for the categories
+        absHiddenPath = '%s/%s' % (absBasePath, glob.cfg['challHiddenDir'])
+        if not os.path.exists(absHiddenPath):
+            rmlog(u'RMCategories::save()',u'Creating base hidden-dir [%s]...' % absHiddenPath)
+            try:
+                os.mkdir(absHiddenPath)
+            except Exception as e:
+                rmlog(u'RMCategories::save()',u'Exception while creating [%s]: %s' % (absHiddenPath, e), 'error')
                 return False
 
-        hiddenDir = '%s/%s' % (glob.cfg['challBaseDir'], glob.cfg['challHiddenDir'])
-        if not os.path.exists(hiddenDir):
-            rmlog(u'RMCategories::save()',u'Creating base hidden-dir [%s]...' % hiddenDir)
-            try:
-                os.mkdir(hiddenDir)
-            except Exception as e:
-                rmlog(u'RMCategories::save()',u'Exception while creating hidden directory [%s]: %s' % (hiddenDir, e), 'error')
-                return False
-
-        if os.path.exists(hiddenDir):
+        if os.path.exists(absHiddenPath):
             # unset browser and BS for serializing,
             # browser is a thread and BS is heavy
+            lastOutIP = self.browser.lastOutIP
             bkpBrowser = self.browser
             bkpBS = self.BS
-            self.browser = None
-            self.BS = None
-            rmlog(u'RMCategories::start()',u'Saving RMCategories object to [%s]' % self.storePath)
-            with open(self.storePath, 'wb') as stateObj:
+            self.browser = ""
+            self.BS = ""
+            # Unset BS & browser in every category / challenge
+            for cat in self.categories:
+                cat.browser = ""
+                cat.BS = ""
+                cat.challengesBS = ""
+                for chall in cat.challenges:
+                    chall.browser = ""
+                    chall.BS = ""
+            absPath = '%s/%s' % (absHiddenPath, glob.cfg['stateStore'])
+            rmlog(u'RMCategories::start()',u'Saving RMCategories object to [%s]' % absPath)
+            # First try to save to a temp file
+            tmpFile = '%s.tmp.new' % absPath
+            # DEBUG
+            #print self.__dict__
+            print bkpBrowser.lastOutIP
+            with open(tmpFile, 'wb') as catsFile:
                 try:
                     state = {'version': glob.rmVersion,
-                             'categories': self}
-                    cPickle.dump(state, stateObj, 2)
+                             'lastOutIP': lastOutIP,
+                             'categories': self.__dict__}
+                    cPickle.dump(state, catsFile, 2)
                 except Exception as e:
                     rmlog(u'RMCategories::save()',u'Exception while saving categories to [%s]: %s' % (self.storePath, e), 'error')
+                    rmlog('%s' % traceback.print_exc(), 'debug3')
                     success = False
                 else:
                     success = True
+            if success:
+                if os.path.exists(absPath):
+                    os.remove(absPath)
+                os.rename(tmpFile, absPath)
             # restore browser and BS
             self.browser = bkpBrowser
             self.BS = bkpBS
             return success
-
-    def load(self):
-        if os.path.exists(self.storePath):
-            with open(self.storePath, 'rb') as stateObj:
-                try:
-                    state = cPickle.load(stateObj)
-                except:
-                    rmlog(u'RMChallenge::save()',u'Exception while loading categories from [%s]: %s' % (self.storePath, e), 'error')
-                    return False
-
-            # Check DB version
-            if state and 'version' in state:
-                if float(state['version']) == float(glob.rmVersion):
-                    self.__dict__.update(state['categories'])
-                    return self
-                else:
-                    if float(state['version']) < float(glob.rmVersion):
-                        rmlog(u'RMCategories::load()',u'The Database is older than the programm, you should set UPDATE = True or press "u" if you\'re in the UI.', 'warning')
-                        return False
-                    else:
-                        rmlog(u'RMCategories::load()',u'The Database is newer than the programm, you should "git pull" and try again.', 'warning')
-                        return False
-            else:
-                rmlog(u'RMCategories::load()',u'The Database seems corrupt, you should set UPDATE = True or press "u" if you\'re in the UI.', 'warning')
-                return False
