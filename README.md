@@ -1,22 +1,34 @@
 # rmshell
 
 ## About me
-*rmshell* is a tool to resolve [root-me.org](https://www.root-me.org/) challenges over a SOCKS proxy.
+*rmshell* is a tool to help you resolve [root-me.org](https://www.root-me.org/) challenges over a SOCKS proxy.
 
+It helps you in several ways:
+* Organization
+  - It creates a directory for each challenge you start
+  - It downloads the source-code
+  - It downloads all the ressources associated this challenge
+* Connectivity / stability
+  - It connects automatically on the website,
+    thus white-listing your current IP for SSH challenges
+  - If your IP has changed, it reconnects :=]
+  - It supports SOCKS proxy if you prefer to hide from prying eyes (SSH / Tor / etc...)
+  - It makes it easy to work on a challenge when offline
+* Performance
+  - It has a much lighter performance impact than IE/FF/Chromium
+  - It spares you a lot of (now) useless clicks, just navigate around
+    and press Enter to SSH into a challenge
+  - It is slow-/heavy-loaded-computers-friendly
 It's main purpose is to check whether the public IP has changed.
 If yes it will perform a new login on root-me.org through the proxy,
 allowing the current public IP to SSH into the challenge.
 
-The second purpose is to provide a terminal-based navigation through the challenges
-and the selection of a challenge, opening the corresponding SSH shell in a dedicated
-panel over the SOCKS tunnel.
-
-If you're not interested in the proxy feature, you still can use this tool in order to
-solve the challenges without any browser. See [Installation / Usage](#installation--usage) below
-
 ## Howto
 
 ### Dependencies
+RMShell should work right away on a Kali, and on most modern distributions.
+
+If there is any error at startup, make sure you have the following python packages installed:
 * Python
   * BeautifulSoup (from bs4 import BeautifulSoup, UnicodeDammit)
   * atexit, Datetime, json, os, cPickle, Queue, signal, sys, time, urllib, urllib2, yaml
